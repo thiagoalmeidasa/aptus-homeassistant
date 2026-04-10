@@ -1,0 +1,11 @@
+{
+  "domain": "aptus",
+  "name": "Aptus",
+  "codeowners": ["@thiagoalmeidasa"],
+  "config_flow": true,
+  "documentation": "https://github.com/thiagoalmeidasa/aptus-homeassistant",
+  "issue_tracker": "https://github.com/thiagoalmeidasa/aptus-homeassistant/issues",
+  "iot_class": "cloud_polling",
+  "requirements": ["aiohttp>=3.9", "beautifulsoup4>=4.12"],
+  "version": "0.1.0"
+}

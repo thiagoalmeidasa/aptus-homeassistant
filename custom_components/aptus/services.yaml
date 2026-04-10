@@ -1,0 +1,35 @@
+book_laundry:
+  name: Book laundry slot
+  description: Book a laundry time slot
+  fields:
+    pass_no:
+      name: Pass number
+      description: Time slot number (0-9)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9
+    pass_date:
+      name: Date
+      description: Date to book (YYYY-MM-DD)
+      required: true
+      selector:
+        text:
+    group_id:
+      name: Group ID
+      description: Laundry group/facility ID
+      required: true
+      selector:
+        text:
+
+cancel_laundry:
+  name: Cancel laundry booking
+  description: Cancel an existing laundry booking
+  fields:
+    booking_id:
+      name: Booking ID
+      description: ID of the booking to cancel
+      required: true
+      selector:
+        text:
