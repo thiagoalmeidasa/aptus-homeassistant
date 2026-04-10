@@ -27,7 +27,10 @@ class TestAptusConfigFlow:
         assert result["step_id"] == "user"
 
     async def test_it_should_create_entry_on_successful_login(self, hass: HomeAssistant):
-        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
+        with (
+            patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls,
+            patch("custom_components.aptus.async_setup_entry", return_value=True),
+        ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -47,7 +50,10 @@ class TestAptusConfigFlow:
         assert result["title"] == "Aptus"
 
     async def test_it_should_store_base_url_username_and_password(self, hass: HomeAssistant):
-        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
+        with (
+            patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls,
+            patch("custom_components.aptus.async_setup_entry", return_value=True),
+        ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -68,7 +74,10 @@ class TestAptusConfigFlow:
         assert result["data"]["password"] == TEST_PASSWORD
 
     async def test_it_should_set_unique_id_from_base_url_and_username(self, hass: HomeAssistant):
-        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
+        with (
+            patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls,
+            patch("custom_components.aptus.async_setup_entry", return_value=True),
+        ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -133,7 +142,10 @@ class TestAptusConfigFlow:
 
     async def test_it_should_abort_if_already_configured(self, hass: HomeAssistant):
         # Create first entry
-        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
+        with (
+            patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls,
+            patch("custom_components.aptus.async_setup_entry", return_value=True),
+        ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -150,7 +162,10 @@ class TestAptusConfigFlow:
             )
 
         # Try creating duplicate
-        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
+        with (
+            patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls,
+            patch("custom_components.aptus.async_setup_entry", return_value=True),
+        ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 

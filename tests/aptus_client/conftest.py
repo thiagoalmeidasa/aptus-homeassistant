@@ -85,6 +85,23 @@ async def mock_aio():
         yield m
 
 
+def _make_session(**kwargs) -> aiohttp.ClientSession:
+    """Create an aiohttp session that avoids pycares background threads."""
+    connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())
+    return aiohttp.ClientSession(connector=connector, **kwargs)
+
+
+@pytest_asyncio.fixture
+async def aiohttp_session():
+    """Yield an aiohttp session for tests that need to test login flow."""
+    from custom_components.aptus.aptus_client import _HEADERS
+
+    session = _make_session(headers=_HEADERS)
+    yield session
+    if not session.closed:
+        await session.close()
+
+
 @pytest_asyncio.fixture
 async def logged_in_client(mock_aio):
     """
@@ -94,7 +111,7 @@ async def logged_in_client(mock_aio):
     injecting the .ASPXAUTH cookie.
     """
     client = AptusClient(base_url=TEST_BASE_URL, username="testuser", password="testpass")
-    client._session = aiohttp.ClientSession(headers=client._headers)
+    client._session = _make_session(headers=client._headers)
     _inject_auth_cookie(client._session, TEST_BASE_URL)
 
     yield client, mock_aio
