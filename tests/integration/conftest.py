@@ -5,7 +5,21 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import AsyncMock, patch
 
+import pycares
 import pytest
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _warm_pycares_thread():
+    """
+    Pre-start the pycares shutdown manager thread.
+
+    The HA test framework asserts no new threads after each test.
+    pycares lazily starts a daemon thread on first Channel creation
+    (triggered by aiohttp's AsyncResolver via hass_ws_client).
+    Pre-starting it here ensures it's in every test's threads_before snapshot.
+    """
+    pycares._shutdown_manager.start()
 
 
 @pytest.fixture(autouse=True)

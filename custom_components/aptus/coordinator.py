@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .aptus_client import AptusClient, doors, laundry
 from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
+from .aptus_client.laundry import get_laundry_category_id
 from .const import (
     CONF_ENABLE_APARTMENT_DOOR,
     CONF_ENABLE_ENTRANCE_DOORS,
@@ -35,6 +36,13 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.client = client
         self.entry = entry
+        self._category_id: str | None = None
+
+    async def get_category_id(self) -> str:
+        """Get the laundry category ID, caching on first call."""
+        if self._category_id is None:
+            self._category_id = await get_laundry_category_id(self.client)
+        return self._category_id
 
     @property
     def entrance_doors_enabled(self) -> bool:
