@@ -9,6 +9,7 @@ export class AptusLaundryBookings extends LitElement {
   static styles = sharedStyles;
 
   @property({ attribute: false }) hass!: HomeAssistant;
+  @property() entryId!: string;
   @state() private _bookings: LaundryBooking[] = [];
   @state() private _loading = false;
 
@@ -20,7 +21,7 @@ export class AptusLaundryBookings extends LitElement {
   async refresh(): Promise<void> {
     this._loading = true;
     try {
-      this._bookings = await fetchBookings(this.hass);
+      this._bookings = await fetchBookings(this.hass, this.entryId);
     } catch {
       this._bookings = [];
     }

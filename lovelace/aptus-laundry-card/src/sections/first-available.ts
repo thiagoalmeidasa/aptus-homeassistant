@@ -9,6 +9,7 @@ export class AptusLaundryFirstAvailable extends LitElement {
   static styles = sharedStyles;
 
   @property({ attribute: false }) hass!: HomeAssistant;
+  @property() entryId!: string;
   @property({ type: Number }) count = 10;
   @state() private _slots: TimeSlot[] = [];
   @state() private _loading = false;
@@ -21,7 +22,7 @@ export class AptusLaundryFirstAvailable extends LitElement {
   async refresh(): Promise<void> {
     this._loading = true;
     try {
-      this._slots = await fetchFirstAvailable(this.hass, this.count);
+      this._slots = await fetchFirstAvailable(this.hass, this.entryId, this.count);
     } catch {
       this._slots = [];
     }

@@ -95,6 +95,7 @@ export class AptusLaundryCalendar extends LitElement {
   ];
 
   @property({ attribute: false }) hass!: HomeAssistant;
+  @property() entryId!: string;
   @state() private _groups: LaundryGroup[] = [];
   @state() private _selectedGroup: string | null = null;
   @state() private _slots: TimeSlot[] = [];
@@ -115,7 +116,7 @@ export class AptusLaundryCalendar extends LitElement {
   private async _loadGroups(): Promise<void> {
     this._loading = true;
     try {
-      this._groups = await fetchGroups(this.hass);
+      this._groups = await fetchGroups(this.hass, this.entryId);
       if (this._groups.length > 0 && !this._selectedGroup) {
         this._selectedGroup = this._groups[0].id;
         await this._loadCalendar(this._selectedGroup);
@@ -131,6 +132,7 @@ export class AptusLaundryCalendar extends LitElement {
     try {
       this._slots = await fetchWeeklyCalendar(
         this.hass,
+        this.entryId,
         groupId,
         this._weekStart ?? undefined
       );
