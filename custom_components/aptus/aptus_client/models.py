@@ -96,14 +96,20 @@ class LaundryBooking:
     group_name: str
     date: date
     pass_no: int
+    _start: time | None = field(default=None, repr=False)
+    _end: time | None = field(default=None, repr=False)
 
     @property
     def start_time(self) -> time:
-        return _TIME_SLOT_MAP[self.pass_no][0]
+        if self._start:
+            return self._start
+        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[0]
 
     @property
     def end_time(self) -> time:
-        return _TIME_SLOT_MAP[self.pass_no][1]
+        if self._end:
+            return self._end
+        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[1]
 
     @property
     def start(self) -> datetime:
