@@ -6,10 +6,11 @@ Custom Lovelace cards for the Aptus Home Assistant integration.
 
 ### Aptus Lock Card
 
-Control Aptus door locks — entrance doors and apartment door.
+Control Aptus door locks with a slide-to-unlock gesture.
 
 **Features:**
-- Lock/unlock toggle per entity
+- Slide-to-unlock slider (drag >85% to unlock, prevents accidental taps)
+- Green "Unlocked" indicator when door is open
 - Lock state icon (locked/unlocked)
 - Battery low warning for apartment door
 - Unavailable state handling
@@ -29,6 +30,29 @@ entities:
 |------------|----------|----------|--------------------------------|
 | `entities` | string[] | Yes      | List of `lock.*` entity IDs    |
 | `title`    | string   | No       | Card header title              |
+
+#### Alternative: Mushroom card with confirmation
+
+If you prefer a standard HA card, you can use a `mushroom-template-card` with a confirmation dialog instead:
+
+```yaml
+type: custom:mushroom-template-card
+entity: lock.entity_example
+icon: >-
+  {{ 'mdi:lock' if is_state(entity, 'locked') else 'mdi:lock-open-check' }}
+icon_color: >-
+  {{ 'red' if is_state(entity, 'locked') else 'green' }}
+primary: Building Door
+secondary: >-
+  {{ states(entity) | capitalize }}
+tap_action:
+  action: perform-action
+  perform_action: lock.unlock
+  target:
+    entity_id: lock.entity_example
+  confirmation:
+    text: Unlock the door?
+```
 
 ---
 
