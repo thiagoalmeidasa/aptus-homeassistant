@@ -1,0 +1,63 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run tests
+        run: |
+          uv run pytest \
+            --timeout=9 \
+            --durations=10 \
+            --cov=custom_components/aptus \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -o console_output_style=count \
+            tests
+
+      - name: Generate coverage summary
+        if: always()
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          badge: true
+          format: markdown
+          output: both
+
+      - name: Add coverage to job summary
+        if: always()
+        run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
