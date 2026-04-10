@@ -46,32 +46,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
 
     entry.runtime_data = coordinator
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
     await _register_frontend(hass)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass, coordinator)
 
     return True
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
-    """Register Lovelace card JS resources."""
-    from homeassistant.components.http import StaticPathConfig
+    """Register Lovelace card JS resources (non-fatal)."""
+    try:
+        from homeassistant.components.http import StaticPathConfig
 
-    static_paths = [
-        StaticPathConfig(
-            url_path=f"/{DOMAIN}/{card}.js",
-            path=str(CARDS_DIR / f"{card}.js"),
-            cache_headers=True,
-        )
-        for card in CARDS
-    ]
-    await hass.http.async_register_static_paths(static_paths)
-    for card in CARDS:
-        try:
+        static_paths = [
+            StaticPathConfig(
+                url_path=f"/{DOMAIN}/{card}.js",
+                path=str(CARDS_DIR / f"{card}.js"),
+                cache_headers=True,
+            )
+            for card in CARDS
+        ]
+        await hass.http.async_register_static_paths(static_paths)
+        for card in CARDS:
             add_extra_js_url(hass, f"/{DOMAIN}/{card}.js")
-        except KeyError:
-            _LOGGER.debug("Frontend not available, skipping extra JS registration")
+    except (AttributeError, KeyError, TypeError):
+        _LOGGER.debug("Frontend not available, skipping card registration")
 
 
 def _register_services(hass: HomeAssistant, coordinator: AptusDataUpdateCoordinator) -> None:
