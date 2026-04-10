@@ -58,6 +58,9 @@ export class AptusLaundryFirstAvailable extends LitElement {
                   <div class="slot-info">
                     <span class="slot-date">${s.date}</span>
                     <span class="slot-time">${s.start_time} – ${s.end_time}</span>
+                    ${s.group_name
+                      ? html`<span class="slot-group">${s.group_name}</span>`
+                      : ""}
                   </div>
                   <button class="btn-book" @click=${() => this._book(s)}>Book</button>
                 </div>

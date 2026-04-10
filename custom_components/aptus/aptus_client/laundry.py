@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 import re
 from typing import TYPE_CHECKING
 
@@ -135,17 +135,39 @@ async def get_first_available_slots(
                 continue
             onclick = btn.get("onclick", "")
             match = re.search(r"passNo=(\d+)&passDate=([^&]+)&bookingGroupId=(\d+)", onclick)
-            if match:
-                slots.append(
-                    TimeSlot(
-                        pass_no=int(match.group(1)),
-                        date=date.fromisoformat(match.group(2)),
-                        group_id=match.group(3),
-                        state=SlotState.AVAILABLE,
-                    )
+            if not match:
+                continue
+
+            # Extract time and group name from card text
+            start, end = _parse_time_label(card.get_text(" ", strip=True))
+            aria = btn.get("aria-label", "")
+            name_match = re.search(r"Book\s+(.+?)\s+\d+\s+\w+\s+\d{4}", aria)
+            group_name = name_match.group(1) if name_match else None
+
+            slots.append(
+                TimeSlot(
+                    pass_no=int(match.group(1)),
+                    date=date.fromisoformat(match.group(2)),
+                    group_id=match.group(3),
+                    state=SlotState.AVAILABLE,
+                    group_name=group_name,
+                    _start=start,
+                    _end=end,
                 )
+            )
 
     return slots
+
+
+def _parse_time_label(text: str) -> tuple[time | None, time | None]:
+    """Extract start and end time from text like '07:00 - 10:00' or '07:00-10:00'."""
+    match = re.search(r"(\d{2}:\d{2})\s*[-\u2013]\s*(\d{2}:\d{2})", text)
+    if match:
+        return (
+            time.fromisoformat(match.group(1)),
+            time.fromisoformat(match.group(2)),
+        )
+    return None, None
 
 
 def _interval_state(css_classes: list[str]) -> SlotState:
@@ -203,12 +225,15 @@ async def get_weekly_calendar(
             if not col_date:
                 continue
             for pass_no, interval in enumerate(day_col.select(".interval")):
+                start, end = _parse_time_label(interval.get_text(strip=True))
                 slots.append(
                     TimeSlot(
                         pass_no=pass_no,
                         date=col_date,
                         group_id=group_id,
                         state=_interval_state(interval.get("class", [])),
+                        _start=start,
+                        _end=end,
                     )
                 )
 

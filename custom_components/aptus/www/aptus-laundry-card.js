@@ -103,6 +103,7 @@ function t(t,e,s,i){var o,r=arguments.length,n=r<3?e:null===i?i=Object.getOwnPro
                   <div class="slot-info">
                     <span class="slot-date">${t.date}</span>
                     <span class="slot-time">${t.start_time} – ${t.end_time}</span>
+                    ${t.group_name?G`<span class="slot-group">${t.group_name}</span>`:""}
                   </div>
                   <button class="btn-book" @click=${()=>this._book(t)}>Book</button>
                 </div>
