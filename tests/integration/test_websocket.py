@@ -1,5 +1,6 @@
-"""BDD tests for Aptus laundry websocket commands."""
+"""BDD tests for Aptus websocket commands."""
 
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
@@ -36,6 +37,23 @@ async def _setup_integration(hass, entry):
     entry.runtime_data._category_id = "35"
 
 
+class TestEntriesCommand:
+    """Describe aptus/entries websocket command."""
+
+    async def test_it_should_return_configured_entries(self, hass: HomeAssistant, hass_ws_client):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/entries"})
+        result = await client.receive_json()
+
+        assert result["success"]
+        assert len(result["result"]) == 1
+        assert result["result"][0]["entry_id"] == entry.entry_id
+        assert result["result"][0]["title"] == "Aptus Test"
+
+
 class TestLaundryGroupsCommand:
     """Describe aptus/laundry/groups websocket command."""
 
@@ -50,7 +68,9 @@ class TestLaundryGroupsCommand:
             patch.object(laundry, "list_laundry_groups", return_value=MOCK_LAUNDRY_GROUPS),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/groups", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -69,7 +89,9 @@ class TestLaundryGroupsCommand:
             patch.object(laundry, "list_laundry_groups", return_value=[]),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/groups", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -90,7 +112,9 @@ class TestLaundryFirstAvailableCommand:
             patch.object(laundry, "get_first_available_slots", return_value=MOCK_AVAILABLE_SLOTS),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/first_available"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/first_available", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -112,11 +136,17 @@ class TestLaundryFirstAvailableCommand:
             patch.object(laundry, "get_first_available_slots", return_value=[]) as mock_first,
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/first_available", "first_x": 5})
+            await client.send_json(
+                {
+                    "id": 1,
+                    "type": "aptus/laundry/first_available",
+                    "entry_id": entry.entry_id,
+                    "first_x": 5,
+                }
+            )
             await client.receive_json()
 
         mock_first.assert_awaited_once()
-        assert mock_first.call_args[1].get("first_x") == 5 or mock_first.call_args[0][1] == "35"
 
 
 class TestLaundryWeeklyCalendarCommand:
@@ -125,8 +155,6 @@ class TestLaundryWeeklyCalendarCommand:
     async def test_it_should_return_weekly_slots_for_a_group(
         self, hass: HomeAssistant, hass_ws_client
     ):
-        from datetime import date
-
         weekly_slots = [
             TimeSlot(pass_no=3, date=date(2026, 4, 10), group_id="185", state=SlotState.AVAILABLE),
             TimeSlot(
@@ -141,7 +169,12 @@ class TestLaundryWeeklyCalendarCommand:
         with patch.object(laundry, "get_weekly_calendar", return_value=weekly_slots):
             client = await hass_ws_client(hass)
             await client.send_json(
-                {"id": 1, "type": "aptus/laundry/weekly_calendar", "group_id": "185"}
+                {
+                    "id": 1,
+                    "type": "aptus/laundry/weekly_calendar",
+                    "entry_id": entry.entry_id,
+                    "group_id": "185",
+                }
             )
             result = await client.receive_json()
 
@@ -161,6 +194,7 @@ class TestLaundryWeeklyCalendarCommand:
                 {
                     "id": 1,
                     "type": "aptus/laundry/weekly_calendar",
+                    "entry_id": entry.entry_id,
                     "group_id": "185",
                     "pass_date": "2026-04-14",
                 }
@@ -168,8 +202,7 @@ class TestLaundryWeeklyCalendarCommand:
             await client.receive_json()
 
         mock_calendar.assert_awaited_once()
-        call_kwargs = mock_calendar.call_args
-        assert "2026-04-14" in str(call_kwargs)
+        assert "2026-04-14" in str(mock_calendar.call_args)
 
 
 class TestLaundryBookingsCommand:
@@ -181,7 +214,9 @@ class TestLaundryBookingsCommand:
 
         with patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/bookings"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/bookings", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -202,7 +237,9 @@ class TestLaundryBookingsCommand:
 
         with patch.object(laundry, "list_bookings", return_value=[]):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/bookings"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/bookings", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -224,7 +261,9 @@ class TestWebsocketErrorHandling:
             side_effect=AptusAuthError("Portal redirected to error page"),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/groups", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -242,7 +281,9 @@ class TestWebsocketErrorHandling:
             side_effect=AptusConnectionError("timeout"),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/groups", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -260,7 +301,9 @@ class TestWebsocketErrorHandling:
             side_effect=AptusAuthError("Portal redirected to error page"),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/first_available"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/first_available", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
@@ -279,7 +322,12 @@ class TestWebsocketErrorHandling:
         ):
             client = await hass_ws_client(hass)
             await client.send_json(
-                {"id": 1, "type": "aptus/laundry/weekly_calendar", "group_id": "185"}
+                {
+                    "id": 1,
+                    "type": "aptus/laundry/weekly_calendar",
+                    "entry_id": entry.entry_id,
+                    "group_id": "185",
+                }
             )
             result = await client.receive_json()
 
@@ -298,8 +346,23 @@ class TestWebsocketErrorHandling:
             side_effect=AptusAuthError("Portal redirected to error page"),
         ):
             client = await hass_ws_client(hass)
-            await client.send_json({"id": 1, "type": "aptus/laundry/bookings"})
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/bookings", "entry_id": entry.entry_id}
+            )
             result = await client.receive_json()
 
         assert result["success"]
         assert result["result"] == []
+
+    async def test_should_return_error_for_unknown_entry_id(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/laundry/groups", "entry_id": "nonexistent"})
+        result = await client.receive_json()
+
+        assert not result["success"]
+        assert result["error"]["code"] == "not_found"

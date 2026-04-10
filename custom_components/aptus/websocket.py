@@ -41,32 +41,51 @@ def _booking_to_dict(booking: LaundryBooking) -> dict[str, Any]:
     }
 
 
-def _get_coordinator(hass: HomeAssistant):
-    """Get the first Aptus coordinator from config entries."""
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
+def _get_coordinator(hass: HomeAssistant, entry_id: str):
+    """Get the Aptus coordinator for a specific config entry."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if not entry or entry.domain != DOMAIN:
         return None
-    return entries[0].runtime_data
+    return entry.runtime_data
 
 
 @callback
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register Aptus websocket commands."""
+    websocket_api.async_register_command(hass, ws_entries)
     websocket_api.async_register_command(hass, ws_laundry_groups)
     websocket_api.async_register_command(hass, ws_laundry_first_available)
     websocket_api.async_register_command(hass, ws_laundry_weekly_calendar)
     websocket_api.async_register_command(hass, ws_laundry_bookings)
 
 
-@websocket_api.websocket_command({"type": "aptus/laundry/groups"})
+@websocket_api.websocket_command({"type": "aptus/entries"})
+@websocket_api.async_response
+async def ws_entries(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+) -> None:
+    """Return configured Aptus integration entries."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    connection.send_result(
+        msg["id"],
+        [{"entry_id": e.entry_id, "title": e.title} for e in entries],
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "aptus/laundry/groups",
+        vol.Required("entry_id"): str,
+    }
+)
 @websocket_api.async_response
 async def ws_laundry_groups(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
 ) -> None:
     """Return available laundry groups."""
-    coordinator = _get_coordinator(hass)
+    coordinator = _get_coordinator(hass, msg["entry_id"])
     if not coordinator:
-        connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
+        connection.send_error(msg["id"], "not_found", "Aptus entry not found")
         return
 
     try:
@@ -81,6 +100,7 @@ async def ws_laundry_groups(
 @websocket_api.websocket_command(
     {
         "type": "aptus/laundry/first_available",
+        vol.Required("entry_id"): str,
         vol.Optional("first_x", default=10): int,
     }
 )
@@ -89,9 +109,9 @@ async def ws_laundry_first_available(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
 ) -> None:
     """Return first available laundry slots."""
-    coordinator = _get_coordinator(hass)
+    coordinator = _get_coordinator(hass, msg["entry_id"])
     if not coordinator:
-        connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
+        connection.send_error(msg["id"], "not_found", "Aptus entry not found")
         return
 
     try:
@@ -108,6 +128,7 @@ async def ws_laundry_first_available(
 @websocket_api.websocket_command(
     {
         "type": "aptus/laundry/weekly_calendar",
+        vol.Required("entry_id"): str,
         vol.Required("group_id"): str,
         vol.Optional("pass_date"): str,
     }
@@ -117,9 +138,9 @@ async def ws_laundry_weekly_calendar(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
 ) -> None:
     """Return weekly calendar for a laundry group."""
-    coordinator = _get_coordinator(hass)
+    coordinator = _get_coordinator(hass, msg["entry_id"])
     if not coordinator:
-        connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
+        connection.send_error(msg["id"], "not_found", "Aptus entry not found")
         return
 
     try:
@@ -132,15 +153,20 @@ async def ws_laundry_weekly_calendar(
         connection.send_result(msg["id"], [])
 
 
-@websocket_api.websocket_command({"type": "aptus/laundry/bookings"})
+@websocket_api.websocket_command(
+    {
+        "type": "aptus/laundry/bookings",
+        vol.Required("entry_id"): str,
+    }
+)
 @websocket_api.async_response
 async def ws_laundry_bookings(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
 ) -> None:
     """Return user's laundry bookings."""
-    coordinator = _get_coordinator(hass)
+    coordinator = _get_coordinator(hass, msg["entry_id"])
     if not coordinator:
-        connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
+        connection.send_error(msg["id"], "not_found", "Aptus entry not found")
         return
 
     try:

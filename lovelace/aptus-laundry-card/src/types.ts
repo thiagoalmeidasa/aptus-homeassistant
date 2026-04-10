@@ -37,6 +37,11 @@ export interface HomeAssistant {
   };
 }
 
+export interface AptusEntry {
+  entry_id: string;
+  title: string;
+}
+
 export interface LaundryGroup {
   id: string;
   name: string;
