@@ -11,6 +11,7 @@ from custom_components.aptus.aptus_client.laundry import (
     cancel_booking,
     get_first_available_slots,
     get_laundry_category_id,
+    get_laundry_group_id,
     get_weekly_calendar,
     list_bookings,
     list_laundry_groups,
@@ -21,6 +22,8 @@ from custom_components.aptus.aptus_client.models import SlotState
 
 CATEGORY_ID_JSON = '{"status":"OK","Payload":"35|Multi"}'
 CATEGORY_ID_BAD_JSON = '{"status":"Error","Payload":""}'
+GROUP_ID_SINGLE_JSON = '{"status":"OK","Payload":"185"}'
+GROUP_ID_MULTI_JSON = '{"status":"OK","Payload":"Multi"}'
 
 LOCATION_GROUPS_HTML = """
 <html><body>
@@ -130,6 +133,34 @@ class TestGetCategoryId:
             await get_laundry_category_id(client)
 
 
+class TestGetLaundryGroupId:
+    """Describe get_laundry_group_id()."""
+
+    async def test_it_should_return_group_id_for_single_group(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/JsonGetSingleCustomerLocationGroupId.*"),
+            body=GROUP_ID_SINGLE_JSON,
+            content_type="application/json",
+        )
+
+        result = await get_laundry_group_id(client, "35")
+
+        assert result == "185"
+
+    async def test_it_should_return_none_for_multi_group(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/JsonGetSingleCustomerLocationGroupId.*"),
+            body=GROUP_ID_MULTI_JSON,
+            content_type="application/json",
+        )
+
+        result = await get_laundry_group_id(client, "35")
+
+        assert result is None
+
+
 class TestListLaundryGroups:
     """Describe list_laundry_groups()."""
 
@@ -163,6 +194,10 @@ class TestListLaundryGroups:
         mock_aio.get(
             re.compile(r".*/CustomerBooking/CustomerLocationGroups.*"),
             body=LOCATION_GROUPS_EMPTY_HTML,
+        )
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/FirstAvailable.*"),
+            body=FIRST_AVAILABLE_EMPTY_HTML,
         )
 
         groups = await list_laundry_groups(client, category_id="35")

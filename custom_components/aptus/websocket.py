@@ -90,8 +90,15 @@ async def ws_laundry_groups(
 
     try:
         category_id = await coordinator.get_category_id()
-        groups = await laundry.list_laundry_groups(coordinator.client, category_id)
-        connection.send_result(msg["id"], [{"id": g.id, "name": g.name} for g in groups])
+        # Try AJAX shortcut first — returns single group ID or None if multi
+        single_group_id = await laundry.get_laundry_group_id(coordinator.client, category_id)
+        if single_group_id:
+            # Single group — return it directly without hitting CustomerLocationGroups
+            connection.send_result(msg["id"], [{"id": single_group_id, "name": "Laundry"}])
+        else:
+            # Multiple groups — fetch the full list
+            groups = await laundry.list_laundry_groups(coordinator.client, category_id)
+            connection.send_result(msg["id"], [{"id": g.id, "name": g.name} for g in groups])
     except (AptusAuthError, AptusConnectionError) as exc:
         _LOGGER.debug("Failed to fetch laundry groups: %s", exc)
         connection.send_result(msg["id"], [])

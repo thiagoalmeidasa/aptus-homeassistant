@@ -26,22 +26,78 @@ async def get_laundry_category_id(client: AptusClient) -> str:
     return payload.split("|")[0]
 
 
-async def list_laundry_groups(client: AptusClient, category_id: str) -> list[LaundryGroup]:
-    """List available laundry groups/facilities for a category."""
-    r = await client.get(
-        "CustomerBooking/CustomerLocationGroups",
+async def get_laundry_group_id(client: AptusClient, category_id: str) -> str | None:
+    """Get the single laundry group ID via AJAX, or None if multiple groups exist."""
+    r = await client.get_ajax(
+        "CustomerBooking/JsonGetSingleCustomerLocationGroupId",
         params={"categoryId": category_id},
+    )
+    data = await r.json(content_type=None)
+    payload = data.get("Payload", "")
+    if not payload or data.get("status") != "OK" or payload == "Multi":
+        return None
+    return payload
+
+
+async def list_laundry_groups(client: AptusClient, category_id: str) -> list[LaundryGroup]:
+    """
+    List available laundry groups/facilities for a category.
+
+    Tries CustomerLocationGroups first, falls back to extracting groups
+    from the FirstAvailable page (some portals don't support the groups endpoint).
+    """
+    try:
+        r = await client.get(
+            "CustomerBooking/CustomerLocationGroups",
+            params={"categoryId": category_id},
+        )
+        body = await r.text()
+        soup = BeautifulSoup(body, "html.parser")
+
+        groups: list[LaundryGroup] = []
+        for btn in soup.select("button.btn[onclick*=SelectBookingGroup]"):
+            onclick = btn.get("onclick", "")
+            match = re.search(r"SelectBookingGroup\((\d+)\)", onclick)
+            if match:
+                groups.append(LaundryGroup(id=match.group(1), name=btn.get_text(strip=True)))
+        if groups:
+            return groups
+    except AptusAuthError:
+        pass
+
+    # Fallback: extract groups from FirstAvailable page
+    return await _extract_groups_from_first_available(client, category_id)
+
+
+async def _extract_groups_from_first_available(
+    client: AptusClient, category_id: str
+) -> list[LaundryGroup]:
+    """Extract unique groups from the FirstAvailable booking cards."""
+    r = await client.get(
+        "CustomerBooking/FirstAvailable",
+        params={"categoryId": category_id, "firstX": "20"},
     )
     body = await r.text()
     soup = BeautifulSoup(body, "html.parser")
 
-    groups: list[LaundryGroup] = []
-    for btn in soup.select("button.btn[onclick*=SelectBookingGroup]"):
+    seen: dict[str, str] = {}
+    for card in soup.select(".bookingCard"):
+        btn = card.select_one("button[onclick*=BookFirstAvailable]")
+        if not btn:
+            continue
         onclick = btn.get("onclick", "")
-        match = re.search(r"SelectBookingGroup\((\d+)\)", onclick)
-        if match:
-            groups.append(LaundryGroup(id=match.group(1), name=btn.get_text(strip=True)))
-    return groups
+        match = re.search(r"bookingGroupId=(\d+)", onclick)
+        if not match:
+            continue
+        group_id = match.group(1)
+        if group_id not in seen:
+            # Extract name from aria-label or card text
+            aria = btn.get("aria-label", "")
+            name_match = re.search(r"Book\s+(.+?)\s+\d+\s+\w+\s+\d{4}", aria)
+            name = name_match.group(1) if name_match else f"Group {group_id}"
+            seen[group_id] = name
+
+    return [LaundryGroup(id=gid, name=name) for gid, name in seen.items()]
 
 
 async def get_first_available_slots(
@@ -56,6 +112,8 @@ async def get_first_available_slots(
     soup = BeautifulSoup(body, "html.parser")
 
     slots: list[TimeSlot] = []
+
+    # Format 1: .firstAvailableCard with BookFirstAvailable(passNo, 'date', groupId)
     for card in soup.select(".firstAvailableCard[onclick*=BookFirstAvailable]"):
         onclick = card.get("onclick", "")
         match = re.search(r"BookFirstAvailable\((\d+),\s*'([^']+)',\s*(\d+)\)", onclick)
@@ -68,7 +126,45 @@ async def get_first_available_slots(
                     state=SlotState.AVAILABLE,
                 )
             )
+
+    # Format 2: .bookingCard with DoBooking button containing URL params
+    if not slots:
+        for card in soup.select(".bookingCard"):
+            btn = card.select_one("button[onclick*=BookFirstAvailable]")
+            if not btn:
+                continue
+            onclick = btn.get("onclick", "")
+            match = re.search(r"passNo=(\d+)&passDate=([^&]+)&bookingGroupId=(\d+)", onclick)
+            if match:
+                slots.append(
+                    TimeSlot(
+                        pass_no=int(match.group(1)),
+                        date=date.fromisoformat(match.group(2)),
+                        group_id=match.group(3),
+                        state=SlotState.AVAILABLE,
+                    )
+                )
+
     return slots
+
+
+def _interval_state(css_classes: list[str]) -> SlotState:
+    """Determine slot state from CSS classes."""
+    if "bookable" in css_classes:
+        return SlotState.AVAILABLE
+    if "owned" in css_classes:
+        return SlotState.OWNED
+    return SlotState.UNAVAILABLE
+
+
+def _extract_date_from_column(day_col) -> date | None:
+    """Extract the date from any DoBooking button in a day column."""
+    btn = day_col.select_one("button[onclick*=passDate]")
+    if btn:
+        m = re.search(r"passDate=([^&'\"]+)", btn.get("onclick", ""))
+        if m:
+            return date.fromisoformat(m.group(1))
+    return None
 
 
 async def get_weekly_calendar(
@@ -86,26 +182,36 @@ async def get_weekly_calendar(
     soup = BeautifulSoup(body, "html.parser")
 
     slots: list[TimeSlot] = []
+
+    # Format 1: .dayColumn[data-date] with .interval[data-passno]
     for day_col in soup.select(".dayColumn[data-date]"):
         day_date = date.fromisoformat(day_col["data-date"])
-        for interval in day_col.select(".interval[data-passno]"):
-            pass_no = int(interval["data-passno"])
-            css_classes = interval.get("class", [])
-            if "bookable" in css_classes:
-                state = SlotState.AVAILABLE
-            elif "owned" in css_classes:
-                state = SlotState.OWNED
-            else:
-                state = SlotState.UNAVAILABLE
-
-            slots.append(
-                TimeSlot(
-                    pass_no=pass_no,
-                    date=day_date,
-                    group_id=group_id,
-                    state=state,
-                )
+        slots.extend(
+            TimeSlot(
+                pass_no=int(interval["data-passno"]),
+                date=day_date,
+                group_id=group_id,
+                state=_interval_state(interval.get("class", [])),
             )
+            for interval in day_col.select(".interval[data-passno]")
+        )
+
+    # Format 2: .dayColumn without data-date — extract from button params
+    if not slots:
+        for day_col in soup.select(".dayColumn"):
+            col_date = _extract_date_from_column(day_col)
+            if not col_date:
+                continue
+            for pass_no, interval in enumerate(day_col.select(".interval")):
+                slots.append(
+                    TimeSlot(
+                        pass_no=pass_no,
+                        date=col_date,
+                        group_id=group_id,
+                        state=_interval_state(interval.get("class", [])),
+                    )
+                )
+
     return slots
 
 
