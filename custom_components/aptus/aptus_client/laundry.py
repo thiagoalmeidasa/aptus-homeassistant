@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 
-from .exceptions import AptusParseError
+from .exceptions import AptusAuthError, AptusParseError
 from .models import LaundryBooking, LaundryGroup, SlotState, TimeSlot
 
 if TYPE_CHECKING:
@@ -110,8 +110,11 @@ async def get_weekly_calendar(
 
 
 async def list_bookings(client: AptusClient) -> list[LaundryBooking]:
-    """List the user's active laundry bookings."""
-    r = await client.get("CustomerBooking")
+    """List the user's active laundry bookings. Returns [] if not available."""
+    try:
+        r = await client.get("CustomerBooking")
+    except AptusAuthError:
+        return []
     body = await r.text()
     soup = BeautifulSoup(body, "html.parser")
 

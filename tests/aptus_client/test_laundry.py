@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from custom_components.aptus.aptus_client.exceptions import AptusParseError
+from custom_components.aptus.aptus_client.exceptions import AptusAuthError, AptusParseError
 from custom_components.aptus.aptus_client.laundry import (
     book_slot,
     cancel_booking,
@@ -319,6 +319,23 @@ class TestListBookings:
         mock_aio.get(
             re.compile(r".*/CustomerBooking$"),
             body=BOOKINGS_EMPTY_HTML,
+        )
+
+        bookings = await list_bookings(client)
+
+        assert bookings == []
+
+
+class TestListBookingsUnavailable:
+    """Describe list_bookings() when laundry feature is not available."""
+
+    async def test_it_should_return_empty_list_when_portal_redirects_to_error_page(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking$"),
+            exception=AptusAuthError("Portal redirected to error page"),
         )
 
         bookings = await list_bookings(client)

@@ -9,6 +9,7 @@ from custom_components.aptus.aptus_client.doors import (
     unlock_apartment_door,
     unlock_entrance_door,
 )
+from custom_components.aptus.aptus_client.exceptions import AptusAuthError
 from custom_components.aptus.aptus_client.models import DoorType
 
 from .conftest import (
@@ -218,6 +219,23 @@ class TestLockApartmentDoor:
         result = await lock_apartment_door(client)
 
         assert result.success is True
+
+
+class TestApartmentDoorStatusUnavailable:
+    """Describe get_apartment_door_status() when feature is not available."""
+
+    async def test_it_should_return_none_when_portal_redirects_to_error_page(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/Lock/SetLockStatusTempData"),
+            exception=AptusAuthError("Portal redirected to error page"),
+        )
+
+        status = await get_apartment_door_status(client)
+
+        assert status is None
 
 
 class TestUnlockApartmentDoor:
