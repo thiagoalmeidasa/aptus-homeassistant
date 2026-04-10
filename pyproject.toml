@@ -1,0 +1,22 @@
+[project]
+name = "aptus-homeassistant"
+version = "0.1.0"
+description = "Home Assistant custom integration for Aptus building access portals"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.9",
+    "beautifulsoup4>=4.12",
+]
+
+[dependency-groups]
+dev = [
+    "aioresponses>=0.7.6",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-homeassistant-custom-component>=0.13",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
