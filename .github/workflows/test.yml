@@ -6,19 +6,15 @@ on:
       - main
     paths:
       - "**.py"
-      - "**.ts"
       - "pyproject.toml"
       - "uv.lock"
-      - "lovelace/**/package.json"
   pull_request:
     branches:
       - main
     paths:
       - "**.py"
-      - "**.ts"
       - "pyproject.toml"
       - "uv.lock"
-      - "lovelace/**/package.json"
 
 concurrency:
   group: test-${{ github.ref }}
@@ -27,8 +23,8 @@ concurrency:
 permissions: {}
 
 jobs:
-  python:
-    name: Python tests
+  tests:
+    name: Run tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
@@ -65,30 +61,3 @@ jobs:
       - name: Add coverage to job summary
         if: always()
         run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
-
-  lovelace:
-    name: Lovelace card tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        card: [aptus-lock-card, aptus-laundry-card]
-    steps:
-      - name: Checkout the repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        working-directory: lovelace/${{ matrix.card }}
-        run: npm ci
-
-      - name: Run tests
-        working-directory: lovelace/${{ matrix.card }}
-        run: npm test
-
-      - name: Build
-        working-directory: lovelace/${{ matrix.card }}
-        run: npm run build
