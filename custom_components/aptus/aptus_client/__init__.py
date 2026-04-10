@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Self
 
@@ -108,21 +107,15 @@ class AptusClient:
         url_path = response.url.path.lower()
         if "/account/error" in url_path:
             _LOGGER.debug("Portal redirected to error page: %s", response.url)
-            raise AptusAuthError(
-                f"Portal redirected to error page: {response.url}"
-            )
+            raise AptusAuthError(f"Portal redirected to error page: {response.url}")
         if "/account/login" in url_path:
             _LOGGER.debug("Session expired — redirected to login: %s", response.url)
-            raise AptusAuthError(
-                f"Session expired — redirected to login: {response.url}"
-            )
+            raise AptusAuthError(f"Session expired — redirected to login: {response.url}")
 
     async def get(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET a path relative to the portal base URL."""
         _LOGGER.debug("GET %s/%s", self._base_url, path.lstrip("/"))
-        response = await self.session.get(
-            f"{self._base_url}/{path.lstrip('/')}", **kwargs
-        )
+        response = await self.session.get(f"{self._base_url}/{path.lstrip('/')}", **kwargs)
         self._check_response(response)
         return response
 
