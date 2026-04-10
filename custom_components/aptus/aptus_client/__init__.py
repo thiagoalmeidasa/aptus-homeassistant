@@ -112,8 +112,16 @@ class AptusClient:
             _LOGGER.debug("Session expired — redirected to login: %s", response.url)
             raise AptusAuthError(f"Session expired — redirected to login: {response.url}")
 
+    async def _ensure_session(self) -> None:
+        """Re-login if the session is closed or missing."""
+        if self._session is None or self._session.closed:
+            _LOGGER.debug("Session closed or missing, re-authenticating")
+            self._session = None
+            await self.login()
+
     async def get(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET a path relative to the portal base URL."""
+        await self._ensure_session()
         _LOGGER.debug("GET %s/%s", self._base_url, path.lstrip("/"))
         response = await self.session.get(f"{self._base_url}/{path.lstrip('/')}", **kwargs)
         self._check_response(response)
