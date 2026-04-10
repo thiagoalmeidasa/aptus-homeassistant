@@ -43,13 +43,14 @@ View, book, and cancel laundry time slots with three configurable sections.
 
 Data is fetched on-demand via websocket commands when the card is opened, not via polling.
 
-**Multi-account:** If only one Aptus integration entry is configured, the card auto-selects it. With multiple entries, a dropdown lets you pick which account to use.
+**Multi-account:** If only one Aptus integration entry is configured, the card auto-selects it. With multiple entries, set `entry_id` in the card YAML to pin it to a specific account. You can find your entry ID in **Settings > Devices & Services > Aptus** — it's shown in the URL when you click on the entry (e.g. `/config/integrations/integration/aptus#01KNWDRGVBXXBSSW5PTATS92AH`).
 
 **Configuration:**
 
 ```yaml
 type: custom:aptus-laundry-card
-title: Laundry  # optional
+title: Laundry
+entry_id: 01KNWDRGVBXXBSSW5PTATS92AH  # optional, required if multiple entries
 sections:  # optional, defaults to all three
   - type: my-bookings
   - type: first-available
@@ -57,11 +58,12 @@ sections:  # optional, defaults to all three
 first_available_count: 10  # optional, default 10
 ```
 
-| Option                  | Type           | Required | Description                              |
-|-------------------------|----------------|----------|------------------------------------------|
-| `title`                 | string         | No       | Card header title                        |
-| `sections`              | SectionConfig[]| No       | Which sections to show and in what order  |
-| `first_available_count` | number         | No       | Number of slots in "First available" (default 10) |
+| Option                  | Type           | Required | Description                                          |
+|-------------------------|----------------|----------|------------------------------------------------------|
+| `entry_id`              | string         | No       | Integration entry ID (required with multiple entries) |
+| `title`                 | string         | No       | Card header title                                    |
+| `sections`              | SectionConfig[]| No       | Which sections to show and in what order              |
+| `first_available_count` | number         | No       | Number of slots in "First available" (default 10)    |
 
 **Section types:** `my-bookings`, `first-available`, `calendar`
 
