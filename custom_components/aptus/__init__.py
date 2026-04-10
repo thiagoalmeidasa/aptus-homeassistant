@@ -16,6 +16,7 @@ from .aptus_client import AptusClient, laundry
 from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from .const import DOMAIN
 from .coordinator import AptusDataUpdateCoordinator
+from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
 
     entry.runtime_data = coordinator
 
+    async_register_websocket_commands(hass)
     await _register_frontend(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass, coordinator)
