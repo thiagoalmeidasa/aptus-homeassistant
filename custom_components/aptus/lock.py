@@ -27,8 +27,8 @@ async def async_setup_entry(
         for door in coordinator.data.get("doors", [])
     ]
 
-    # Add apartment door if status is available
-    if coordinator.data.get("apartment_status"):
+    # Add apartment door if enabled in options
+    if coordinator.apartment_door_enabled:
         entities.append(AptusApartmentDoorLock(coordinator, entry))
 
     async_add_entities(entities)

@@ -58,19 +58,57 @@ MOCK_AVAILABLE_SLOTS = [
 ]
 
 
+class MockEntryBuilder:
+    """Builder for MockConfigEntry with feature toggles."""
+
+    def __init__(self) -> None:
+        self._entrance_doors = True
+        self._apartment_door = True
+        self._laundry = True
+
+    def with_entrance_doors(self, enabled=True):
+        self._entrance_doors = enabled
+        return self
+
+    def with_apartment_door(self, enabled=True):
+        self._apartment_door = enabled
+        return self
+
+    def with_laundry(self, enabled=True):
+        self._laundry = enabled
+        return self
+
+    def without_entrance_doors(self):
+        return self.with_entrance_doors(enabled=False)
+
+    def without_apartment_door(self):
+        return self.with_apartment_door(enabled=False)
+
+    def without_laundry(self):
+        return self.with_laundry(enabled=False)
+
+    def build(self) -> MockConfigEntry:
+        return MockConfigEntry(
+            domain=DOMAIN,
+            title="Aptus Test",
+            data={
+                "base_url": TEST_BASE_URL,
+                "username": TEST_USERNAME,
+                "password": TEST_PASSWORD,
+            },
+            options={
+                "enable_entrance_doors": self._entrance_doors,
+                "enable_apartment_door": self._apartment_door,
+                "enable_laundry": self._laundry,
+            },
+            unique_id=f"{TEST_BASE_URL}_{TEST_USERNAME}",
+        )
+
+
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """Create a mock config entry for the Aptus integration."""
-    return MockConfigEntry(
-        domain=DOMAIN,
-        title="Aptus Test",
-        data={
-            "base_url": TEST_BASE_URL,
-            "username": TEST_USERNAME,
-            "password": TEST_PASSWORD,
-        },
-        unique_id=f"{TEST_BASE_URL}_{TEST_USERNAME}",
-    )
+    """Create a mock config entry with all features enabled."""
+    return MockEntryBuilder().build()
 
 
 @pytest.fixture

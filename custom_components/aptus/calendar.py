@@ -22,6 +22,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up Aptus laundry calendar entity."""
     coordinator: AptusDataUpdateCoordinator = entry.runtime_data
+    if not coordinator.laundry_enabled:
+        return
     async_add_entities([AptusLaundryCalendar(coordinator, entry)])
 
 

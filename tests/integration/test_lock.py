@@ -9,29 +9,17 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.aptus.aptus_client import doors, laundry
 from custom_components.aptus.aptus_client.models import UnlockResult
-from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_BOOKINGS,
     MOCK_DOOR_STATUS,
     MOCK_DOORS,
-    TEST_BASE_URL,
-    TEST_PASSWORD,
-    TEST_USERNAME,
+    MockEntryBuilder,
 )
 
 
 def _make_entry(hass: HomeAssistant) -> MockConfigEntry:
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Aptus Test",
-        data={
-            "base_url": TEST_BASE_URL,
-            "username": TEST_USERNAME,
-            "password": TEST_PASSWORD,
-        },
-        unique_id=f"{TEST_BASE_URL}_{TEST_USERNAME}",
-    )
+    entry = MockEntryBuilder().build()
     entry.add_to_hass(hass)
     return entry
 

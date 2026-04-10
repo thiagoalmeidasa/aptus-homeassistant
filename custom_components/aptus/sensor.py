@@ -21,6 +21,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up Aptus sensor entities."""
     coordinator: AptusDataUpdateCoordinator = entry.runtime_data
+    if not coordinator.laundry_enabled:
+        return
     async_add_entities(
         [
             AptusNextLaundryBookingSensor(coordinator, entry),
