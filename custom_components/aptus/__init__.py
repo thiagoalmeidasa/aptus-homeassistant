@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -16,6 +18,9 @@ from .const import DOMAIN
 from .coordinator import AptusDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+CARDS_DIR = Path(__file__).parent / "www"
+CARDS = ["aptus-lock-card", "aptus-laundry-card"]
 
 PLATFORMS: list[Platform] = [Platform.LOCK, Platform.CALENDAR, Platform.SENSOR]
 
@@ -43,9 +48,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    _register_frontend(hass)
     _register_services(hass, coordinator)
 
     return True
+
+
+def _register_frontend(hass: HomeAssistant) -> None:
+    """Register Lovelace card JS resources."""
+    for card in CARDS:
+        url = f"/{DOMAIN}/{card}.js"
+        path = str(CARDS_DIR / f"{card}.js")
+        hass.http.register_static_path(url, path, cache_headers=True)
+        try:
+            add_extra_js_url(hass, url)
+        except KeyError:
+            _LOGGER.debug("Frontend not available, skipping extra JS registration")
 
 
 def _register_services(hass: HomeAssistant, coordinator: AptusDataUpdateCoordinator) -> None:

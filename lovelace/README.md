@@ -72,23 +72,27 @@ calendar_entity: calendar.aptus_laundry
 
 ## Installation
 
+### Via HACS (recommended)
+
+Both cards are bundled with the Aptus integration. When you install the integration via HACS, the cards are automatically registered as frontend resources — no manual setup needed.
+
 ### Manual
 
-1. Build the card you want:
+1. Build the cards:
 
    ```bash
-   cd lovelace/aptus-lock-card   # or aptus-laundry-card
-   npm install
-   npm run build
+   cd lovelace/aptus-lock-card && npm install && npm run build
+   cd ../aptus-laundry-card && npm install && npm run build
    ```
 
-2. Copy `dist/aptus-lock-card.js` (or `aptus-laundry-card.js`) to your Home Assistant `www/` directory.
+2. Copy the built JS files to `custom_components/aptus/www/`:
 
-3. Add the resource in HA → Settings → Dashboards → Resources:
+   ```bash
+   cp lovelace/aptus-lock-card/dist/aptus-lock-card.js custom_components/aptus/www/
+   cp lovelace/aptus-laundry-card/dist/aptus-laundry-card.js custom_components/aptus/www/
+   ```
 
-   ```
-   /local/aptus-lock-card.js
-   ```
+3. Restart Home Assistant. The integration auto-registers the cards — no need to add resources manually.
 
 ## Development
 
