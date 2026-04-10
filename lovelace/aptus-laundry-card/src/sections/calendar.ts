@@ -101,10 +101,14 @@ export class AptusLaundryCalendar extends LitElement {
   @state() private _slots: TimeSlot[] = [];
   @state() private _loading = false;
   @state() private _weekStart: string | null = null;
+  private _initialized = false;
 
   connectedCallback(): void {
     super.connectedCallback();
-    this._loadGroups();
+    if (!this._initialized) {
+      this._initialized = true;
+      this._loadGroups();
+    }
   }
 
   async refresh(): Promise<void> {

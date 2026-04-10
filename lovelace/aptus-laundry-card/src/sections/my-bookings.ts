@@ -12,10 +12,14 @@ export class AptusLaundryBookings extends LitElement {
   @property() entryId!: string;
   @state() private _bookings: LaundryBooking[] = [];
   @state() private _loading = false;
+  private _initialized = false;
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.refresh();
+    if (!this._initialized) {
+      this._initialized = true;
+      this.refresh();
+    }
   }
 
   async refresh(): Promise<void> {
