@@ -71,6 +71,14 @@ export class AptusLaundryCard extends LitElement {
 
   private async _loadEntries(): Promise<void> {
     if (this._entriesLoaded) return;
+
+    // If entry_id is set in YAML config, use it directly
+    if (this._config.entry_id) {
+      this._selectedEntryId = this._config.entry_id;
+      this._entriesLoaded = true;
+      return;
+    }
+
     try {
       this._entries = await fetchEntries(this.hass);
       if (this._entries.length === 1) {

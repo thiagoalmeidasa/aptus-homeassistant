@@ -5,6 +5,7 @@ export interface SectionConfig {
 export interface AptusLaundryCardConfig {
   type: string;
   title?: string;
+  entry_id?: string;
   sections?: SectionConfig[];
   first_available_count?: number;
   /** @deprecated Use sections instead */
