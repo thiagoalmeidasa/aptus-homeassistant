@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 
+from .exceptions import AptusAuthError
 from .models import Door, DoorStatus, DoorType, UnlockResult
 
 if TYPE_CHECKING:
@@ -40,16 +41,19 @@ async def unlock_entrance_door(client: AptusClient, door_id: str) -> UnlockResul
     )
 
 
-async def get_apartment_door_status(client: AptusClient) -> DoorStatus:
-    """Get the apartment (doorman) lock status."""
-    await client.get("Lock/SetLockStatusTempData")
-    r = await client.get("LockAsync/DoormanLockStatus")
-    data = await r.json()
-    return DoorStatus(
-        is_locked=data.get("IsClosedAndLocked"),
-        battery_low=data.get("BatteryLevelLow"),
-        status_text=data.get("StatusText", ""),
-    )
+async def get_apartment_door_status(client: AptusClient) -> DoorStatus | None:
+    """Get the apartment (doorman) lock status. Returns None if not available."""
+    try:
+        await client.get("Lock/SetLockStatusTempData")
+        r = await client.get("LockAsync/DoormanLockStatus")
+        data = await r.json()
+        return DoorStatus(
+            is_locked=data.get("IsClosedAndLocked"),
+            battery_low=data.get("BatteryLevelLow"),
+            status_text=data.get("StatusText", ""),
+        )
+    except AptusAuthError:
+        return None
 
 
 async def lock_apartment_door(client: AptusClient) -> UnlockResult:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Self
 
 import aiohttp
@@ -9,6 +11,8 @@ from bs4 import BeautifulSoup
 
 from .auth import encrypt_password
 from .exceptions import AptusAuthError, AptusConnectionError, AptusParseError
+
+_LOGGER = logging.getLogger(__name__)
 
 _HEADERS = {
     "User-Agent": (
@@ -43,12 +47,14 @@ class AptusClient:
                 self._session = aiohttp.ClientSession(headers=_HEADERS)
 
             # 1. Set language
+            _LOGGER.debug("Setting portal language to en-GB")
             await self._session.get(
                 f"{self._base_url}/Account/SetCustomerLanguage?lang=en-GB",
                 allow_redirects=False,
             )
 
             # 2. Fetch login page for CSRF token + salt
+            _LOGGER.debug("Fetching login page for CSRF token")
             login_url = f"{self._base_url}/Account/Login"
             r = await self._session.get(
                 login_url, params={"ReturnUrl": f"/{self._base_url.split('/')[-1]}/"}
@@ -66,6 +72,7 @@ class AptusClient:
             salt = int(salt_el["value"])
 
             # 3. POST login
+            _LOGGER.debug("Posting login credentials for user %s", self._username)
             await self._session.post(
                 login_url,
                 params={"ReturnUrl": f"/{self._base_url.split('/')[-1]}/"},
@@ -85,6 +92,7 @@ class AptusClient:
             cookies = {c.key for c in self._session.cookie_jar}
             if ".ASPXAUTH" not in cookies:
                 raise AptusAuthError("Login failed — no auth cookie received")
+            _LOGGER.debug("Login successful — .ASPXAUTH cookie received")
 
         except (aiohttp.ClientError, OSError) as exc:
             raise AptusConnectionError(str(exc)) from exc
@@ -95,12 +103,32 @@ class AptusClient:
             raise RuntimeError("Not logged in — call login() first")
         return self._session
 
+    def _check_response(self, response: aiohttp.ClientResponse) -> None:
+        """Raise if the portal redirected to an error or login page."""
+        url_path = response.url.path.lower()
+        if "/account/error" in url_path:
+            _LOGGER.debug("Portal redirected to error page: %s", response.url)
+            raise AptusAuthError(
+                f"Portal redirected to error page: {response.url}"
+            )
+        if "/account/login" in url_path:
+            _LOGGER.debug("Session expired — redirected to login: %s", response.url)
+            raise AptusAuthError(
+                f"Session expired — redirected to login: {response.url}"
+            )
+
     async def get(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET a path relative to the portal base URL."""
-        return await self.session.get(f"{self._base_url}/{path.lstrip('/')}", **kwargs)
+        _LOGGER.debug("GET %s/%s", self._base_url, path.lstrip("/"))
+        response = await self.session.get(
+            f"{self._base_url}/{path.lstrip('/')}", **kwargs
+        )
+        self._check_response(response)
+        return response
 
     async def get_ajax(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET with AJAX headers (required for JSON endpoints)."""
+        _LOGGER.debug("GET (AJAX) %s", path)
         headers = kwargs.pop("headers", {})
         headers["X-Requested-With"] = "XMLHttpRequest"
         return await self.get(path, headers=headers, **kwargs)
