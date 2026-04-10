@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.core import HomeAssistant
 
 from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from custom_components.aptus.aptus_client.models import SlotState, TimeSlot
 
 from .conftest import (
@@ -200,6 +201,102 @@ class TestLaundryBookingsCommand:
         await _setup_integration(hass, entry)
 
         with patch.object(laundry, "list_bookings", return_value=[]):
+            client = await hass_ws_client(hass)
+            await client.send_json({"id": 1, "type": "aptus/laundry/bookings"})
+            result = await client.receive_json()
+
+        assert result["success"]
+        assert result["result"] == []
+
+
+class TestWebsocketErrorHandling:
+    """Describe websocket commands when the portal returns errors."""
+
+    async def test_groups_should_return_empty_list_on_auth_error(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        with patch.object(
+            laundry,
+            "list_laundry_groups",
+            side_effect=AptusAuthError("Portal redirected to error page"),
+        ):
+            client = await hass_ws_client(hass)
+            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            result = await client.receive_json()
+
+        assert result["success"]
+        assert result["result"] == []
+
+    async def test_groups_should_return_empty_list_on_connection_error(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        with patch.object(
+            laundry,
+            "list_laundry_groups",
+            side_effect=AptusConnectionError("timeout"),
+        ):
+            client = await hass_ws_client(hass)
+            await client.send_json({"id": 1, "type": "aptus/laundry/groups"})
+            result = await client.receive_json()
+
+        assert result["success"]
+        assert result["result"] == []
+
+    async def test_first_available_should_return_empty_list_on_auth_error(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        with patch.object(
+            laundry,
+            "get_first_available_slots",
+            side_effect=AptusAuthError("Portal redirected to error page"),
+        ):
+            client = await hass_ws_client(hass)
+            await client.send_json({"id": 1, "type": "aptus/laundry/first_available"})
+            result = await client.receive_json()
+
+        assert result["success"]
+        assert result["result"] == []
+
+    async def test_weekly_calendar_should_return_empty_list_on_auth_error(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        with patch.object(
+            laundry,
+            "get_weekly_calendar",
+            side_effect=AptusAuthError("Portal redirected to error page"),
+        ):
+            client = await hass_ws_client(hass)
+            await client.send_json(
+                {"id": 1, "type": "aptus/laundry/weekly_calendar", "group_id": "185"}
+            )
+            result = await client.receive_json()
+
+        assert result["success"]
+        assert result["result"] == []
+
+    async def test_bookings_should_return_empty_list_on_auth_error(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        with patch.object(
+            laundry,
+            "list_bookings",
+            side_effect=AptusAuthError("Portal redirected to error page"),
+        ):
             client = await hass_ws_client(hass)
             await client.send_json({"id": 1, "type": "aptus/laundry/bookings"})
             result = await client.receive_json()
