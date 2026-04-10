@@ -34,41 +34,38 @@ entities:
 
 ### Aptus Laundry Card
 
-View, book, and cancel laundry time slots.
+View, book, and cancel laundry time slots with three configurable sections.
 
-**Features:**
-- Upcoming bookings list fetched from the HA calendar API
-- Cancel button per booking
-- Booking form with date picker, time slot selector, and group ID input
-- Empty state when no bookings exist
+**Sections:**
+- **My bookings** — current bookings with cancel button
+- **First available** — next N available slots across all rooms with one-click booking
+- **Calendar** — weekly grid per laundry room with group selector and week navigation
+
+Data is fetched on-demand via websocket commands when the card is opened, not via polling.
+
+**Multi-account:** If only one Aptus integration entry is configured, the card auto-selects it. With multiple entries, set `entry_id` in the card YAML to pin it to a specific account. You can find your entry ID in **Settings > Devices & Services > Aptus** — it's shown in the URL when you click on the entry (e.g. `/config/integrations/integration/aptus#01KNWDRGVBXXBSSW5PTATS92AH`).
 
 **Configuration:**
 
 ```yaml
 type: custom:aptus-laundry-card
-title: Laundry  # optional
-calendar_entity: calendar.aptus_laundry
+title: Laundry
+entry_id: 01KNWDRGVBXXBSSW5PTATS92AH  # optional, required if multiple entries
+sections:  # optional, defaults to all three
+  - type: my-bookings
+  - type: first-available
+  - type: calendar
+first_available_count: 10  # optional, default 10
 ```
 
-| Option            | Type   | Required | Description                          |
-|-------------------|--------|----------|--------------------------------------|
-| `calendar_entity` | string | Yes      | Calendar entity ID for laundry       |
-| `title`           | string | No       | Card header title                    |
+| Option                  | Type           | Required | Description                                          |
+|-------------------------|----------------|----------|------------------------------------------------------|
+| `entry_id`              | string         | No       | Integration entry ID (required with multiple entries) |
+| `title`                 | string         | No       | Card header title                                    |
+| `sections`              | SectionConfig[]| No       | Which sections to show and in what order              |
+| `first_available_count` | number         | No       | Number of slots in "First available" (default 10)    |
 
-**Time slots** (pass numbers 0–9):
-
-| Pass | Time            |
-|------|-----------------|
-| 0    | 02:00 – 04:00   |
-| 1    | 04:00 – 06:00   |
-| 2    | 06:00 – 08:30   |
-| 3    | 08:30 – 11:00   |
-| 4    | 11:00 – 13:30   |
-| 5    | 13:30 – 16:00   |
-| 6    | 16:00 – 18:30   |
-| 7    | 18:30 – 21:00   |
-| 8    | 21:00 – 23:30   |
-| 9    | 23:30 – 02:00   |
+**Section types:** `my-bookings`, `first-available`, `calendar`
 
 ## Installation
 

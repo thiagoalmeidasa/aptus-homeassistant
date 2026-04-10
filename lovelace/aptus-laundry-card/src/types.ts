@@ -1,8 +1,15 @@
+export interface SectionConfig {
+  type: "my-bookings" | "first-available" | "calendar";
+}
+
 export interface AptusLaundryCardConfig {
   type: string;
-  calendar_entity: string;
-  sensor_entity?: string;
   title?: string;
+  entry_id?: string;
+  sections?: SectionConfig[];
+  first_available_count?: number;
+  /** @deprecated Use sections instead */
+  calendar_entity?: string;
 }
 
 export interface HassEntity {
@@ -17,14 +24,6 @@ export interface HassEntity {
   };
 }
 
-export interface CalendarEvent {
-  summary: string;
-  start: string;
-  end: string;
-  description?: string;
-  uid?: string;
-}
-
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   callService(
@@ -34,6 +33,38 @@ export interface HomeAssistant {
     target?: { entity_id: string }
   ): Promise<void>;
   callApi<T>(method: string, path: string): Promise<T>;
+  connection: {
+    sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T>;
+  };
+}
+
+export interface AptusEntry {
+  entry_id: string;
+  title: string;
+}
+
+export interface LaundryGroup {
+  id: string;
+  name: string;
+}
+
+export interface TimeSlot {
+  pass_no: number;
+  date: string;
+  group_id: string;
+  state: "available" | "unavailable" | "owned";
+  start_time: string;
+  end_time: string;
+  group_name?: string;
+}
+
+export interface LaundryBooking {
+  id: string;
+  group_name: string;
+  date: string;
+  pass_no: number;
+  start_time: string;
+  end_time: string;
 }
 
 export interface TimeSlotInfo {
@@ -54,4 +85,10 @@ export const TIME_SLOTS: TimeSlotInfo[] = [
   { passNo: 7, label: "18:30 – 21:00", start: "18:30", end: "21:00" },
   { passNo: 8, label: "21:00 – 23:30", start: "21:00", end: "23:30" },
   { passNo: 9, label: "23:30 – 02:00", start: "23:30", end: "02:00" },
+];
+
+export const DEFAULT_SECTIONS: SectionConfig[] = [
+  { type: "my-bookings" },
+  { type: "first-available" },
+  { type: "calendar" },
 ];
