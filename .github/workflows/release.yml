@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Prepare release asset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Update manifest version
+        run: python3 .github/scripts/update_manifest_version.py --version ${{ github.event.release.tag_name }}
+
+      - name: Create zip
+        run: |
+          cd custom_components/aptus
+          zip aptus.zip -r ./
+
+      - name: Upload zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./custom_components/aptus/aptus.zip
+          asset_name: aptus.zip
+          tag: ${{ github.ref }}
+          overwrite: true
