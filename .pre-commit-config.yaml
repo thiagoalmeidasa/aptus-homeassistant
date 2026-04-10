@@ -13,6 +13,8 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
+        args: ["-L", "hass,ot"]
+        exclude: "package-lock\\.json$"
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.6
