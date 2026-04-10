@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Aptus Portal",
+        "data": {
+          "base_url": "Portal URL",
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid authentication",
+      "cannot_connect": "Cannot connect to portal",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This portal account is already configured"
+    }
+  }
+}
