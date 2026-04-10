@@ -43,6 +43,8 @@ View, book, and cancel laundry time slots with three configurable sections.
 
 Data is fetched on-demand via websocket commands when the card is opened, not via polling.
 
+**Multi-account:** If only one Aptus integration entry is configured, the card auto-selects it. With multiple entries, a dropdown lets you pick which account to use.
+
 **Configuration:**
 
 ```yaml
