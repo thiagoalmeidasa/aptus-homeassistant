@@ -250,6 +250,8 @@ async def list_bookings(client: AptusClient) -> list[LaundryBooking]:
     soup = BeautifulSoup(body, "html.parser")
 
     bookings: list[LaundryBooking] = []
+
+    # Format 1: .bookingCard[data-bookingid] with .group, .date, .passno
     for card in soup.select(".bookingCard[data-bookingid]"):
         booking_id = card["data-bookingid"]
         group_el = card.select_one(".group")
@@ -265,7 +267,69 @@ async def list_bookings(client: AptusClient) -> list[LaundryBooking]:
                     pass_no=int(passno_el.get_text(strip=True)),
                 )
             )
+
+    # Format 2: .bookingCard with .unbookButton (id = booking_id)
+    if not bookings:
+        bookings = _parse_bookings_format2(soup)
+
     return bookings
+
+
+def _parse_bookings_format2(soup: BeautifulSoup) -> list[LaundryBooking]:
+    """Parse bookings from portal format with .unbookButton."""
+    bookings: list[LaundryBooking] = []
+    for card in soup.select(".bookingCard"):
+        booking = _parse_single_booking_card(card)
+        if booking:
+            bookings.append(booking)
+    return bookings
+
+
+def _parse_single_booking_card(card) -> LaundryBooking | None:
+    """Parse a single booking card with .unbookButton."""
+    unbook_btn = card.select_one("button.unbookButton")
+    if not unbook_btn:
+        return None
+
+    booking_id = unbook_btn.get("id", "")
+    if not booking_id:
+        return None
+
+    # Time from first div
+    divs = card.select("div")
+    card_time = divs[0].get_text(strip=True) if divs else ""
+
+    # Group name from card divs (skip time, date, "Booking")
+    group_name = ""
+    for div in card.find_all("div", recursive=False):
+        text = div.get_text(strip=True)
+        if (
+            text
+            and not re.match(r"^\d", text)
+            and text != "Booking"
+            and "cardSmallFont" not in (div.get("class") or [])
+        ):
+            group_name = text
+            break
+
+    # Date from aria-label: "Cancel booking Laundry 12/04/2026 10:00"
+    aria = unbook_btn.get("aria-label", "")
+    date_match = re.search(r"(\d{2}/\d{2}/\d{4})", aria)
+    if not date_match:
+        return None
+    parts = date_match.group(1).split("/")
+    booking_date = date(int(parts[2]), int(parts[1]), int(parts[0]))
+
+    start, end = _parse_time_label(card_time)
+
+    return LaundryBooking(
+        id=booking_id,
+        group_name=group_name,
+        date=booking_date,
+        pass_no=0,
+        _start=start,
+        _end=end,
+    )
 
 
 async def book_slot(
