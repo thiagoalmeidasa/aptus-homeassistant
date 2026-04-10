@@ -243,6 +243,48 @@ class TestAptusClientSessionLifecycle:
             _ = client.session
 
 
+class TestSessionReconnect:
+    """Describe AptusClient auto-reconnect when session is closed."""
+
+    async def test_it_should_re_login_when_session_is_closed(self, mock_aio, aiohttp_session):
+        _setup_login_mocks(mock_aio)
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
+
+        # Close the session to simulate expiry
+        await client.close()
+        assert aiohttp_session.closed
+
+        # Mock login + the GET request
+        _setup_login_mocks(mock_aio)
+        mock_aio.get(re.compile(r".*/Lock$"), body="<html></html>")
+
+        # Patch _ensure_session to create a new mock session with auth cookie
+        async def _mock_ensure():
+            if client._session is None or client._session.closed:
+                from .conftest import _make_session
+
+                client._session = _make_session(headers=client._headers)
+                _inject_auth_cookie(client._session, TEST_BASE_URL)
+
+        client._ensure_session = _mock_ensure  # type: ignore[assignment]
+
+        response = await client.get("Lock")
+        assert response.status == 200
+        await client.close()
+
+    async def test_it_should_not_re_login_when_session_is_active(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(re.compile(r".*/Lock$"), body="<html></html>")
+
+        original_session = client._session
+
+        response = await client.get("Lock")
+
+        # Session should be the same — no reconnect needed
+        assert client._session is original_session
+        assert response.status == 200
+
+
 class TestCheckResponse:
     """Describe AptusClient._check_response() redirect detection."""
 
