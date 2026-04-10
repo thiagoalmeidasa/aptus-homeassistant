@@ -8,6 +8,15 @@
           "username": "Username",
           "password": "Password"
         }
+      },
+      "features": {
+        "title": "Enable features",
+        "description": "Select which features to enable. Features detected as available on your account are pre-selected.",
+        "data": {
+          "enable_entrance_doors": "Entrance doors",
+          "enable_apartment_door": "Apartment door (doorman lock)",
+          "enable_laundry": "Laundry bookings"
+        }
       }
     },
     "error": {
@@ -17,6 +26,18 @@
     },
     "abort": {
       "already_configured": "This portal account is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Features",
+        "data": {
+          "enable_entrance_doors": "Entrance doors",
+          "enable_apartment_door": "Apartment door (doorman lock)",
+          "enable_laundry": "Laundry bookings"
+        }
+      }
     }
   }
 }

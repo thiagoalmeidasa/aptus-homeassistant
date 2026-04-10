@@ -41,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
         await client.close()
         raise ConfigEntryNotReady(str(exc)) from exc
 
-    coordinator = AptusDataUpdateCoordinator(hass, client)
+    coordinator = AptusDataUpdateCoordinator(hass, client, entry)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
@@ -50,7 +50,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass, coordinator)
 
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+
     return True
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: AptusConfigEntry) -> None:
+    """Reload the integration when options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
