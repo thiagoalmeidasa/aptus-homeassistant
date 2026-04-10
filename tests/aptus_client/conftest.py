@@ -5,10 +5,19 @@ import re
 
 import aiohttp
 from aioresponses import aioresponses
+import pycares
+import pytest
 import pytest_asyncio
 from yarl import URL
 
 from custom_components.aptus.aptus_client import AptusClient
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _warm_pycares_thread():
+    """Pre-start pycares thread to avoid lingering thread errors."""
+    pycares._shutdown_manager.start()
+
 
 TEST_BASE_URL = "https://bokning.test.se/Aptusportal"
 
