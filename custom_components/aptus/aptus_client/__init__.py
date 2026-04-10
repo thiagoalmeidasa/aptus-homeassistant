@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Self
+
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -95,9 +97,7 @@ class AptusClient:
 
     async def get(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET a path relative to the portal base URL."""
-        return await self.session.get(
-            f"{self._base_url}/{path.lstrip('/')}", **kwargs
-        )
+        return await self.session.get(f"{self._base_url}/{path.lstrip('/')}", **kwargs)
 
     async def get_ajax(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         """GET with AJAX headers (required for JSON endpoints)."""
@@ -109,7 +109,7 @@ class AptusClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def __aenter__(self) -> AptusClient:
+    async def __aenter__(self) -> Self:
         await self.login()
         return self
 

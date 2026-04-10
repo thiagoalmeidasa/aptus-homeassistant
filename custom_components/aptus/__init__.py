@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import logging
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+import voluptuous as vol
 
-from .aptus_client import AptusClient
-from .aptus_client import laundry
+from .aptus_client import AptusClient, laundry
 from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from .const import DOMAIN
 from .coordinator import AptusDataUpdateCoordinator
@@ -50,9 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
     return True
 
 
-def _register_services(
-    hass: HomeAssistant, coordinator: AptusDataUpdateCoordinator
-) -> None:
+def _register_services(hass: HomeAssistant, coordinator: AptusDataUpdateCoordinator) -> None:
     """Register aptus.book_laundry and aptus.cancel_laundry services."""
 
     async def handle_book_laundry(call: ServiceCall) -> None:

@@ -2,18 +2,14 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from custom_components.aptus.const import DOMAIN
-from custom_components.aptus.aptus_client import doors, laundry
-
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
-
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.const import DOMAIN
+
 from .conftest import (
-    MOCK_AVAILABLE_SLOTS,
     MOCK_BOOKINGS,
     MOCK_DOOR_STATUS,
     MOCK_DOORS,
@@ -41,9 +37,7 @@ def _make_entry(hass: HomeAssistant) -> MockConfigEntry:
 class TestNextLaundryBookingSensor:
     """Describe the next laundry booking sensor."""
 
-    async def test_it_should_show_next_booking_datetime_as_state(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_show_next_booking_datetime_as_state(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -60,9 +54,7 @@ class TestNextLaundryBookingSensor:
             assert state is not None
             assert "2026-04-10" in state.state
 
-    async def test_it_should_include_group_name_in_attributes(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_include_group_name_in_attributes(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -78,9 +70,7 @@ class TestNextLaundryBookingSensor:
             state = hass.states.get("sensor.next_laundry_booking")
             assert state.attributes.get("group_name") == "Grupp 1"
 
-    async def test_it_should_show_unknown_when_no_bookings(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_show_unknown_when_no_bookings(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (

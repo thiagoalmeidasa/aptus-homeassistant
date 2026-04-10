@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.components.lock import LockEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -22,12 +22,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up Aptus lock entities."""
     coordinator: AptusDataUpdateCoordinator = entry.runtime_data
-    entities: list[LockEntity] = []
-
-    for door in coordinator.data.get("doors", []):
-        entities.append(
-            AptusEntranceDoorLock(coordinator, entry, door)
-        )
+    entities: list[LockEntity] = [
+        AptusEntranceDoorLock(coordinator, entry, door)
+        for door in coordinator.data.get("doors", [])
+    ]
 
     # Add apartment door if status is available
     if coordinator.data.get("apartment_status"):
@@ -62,9 +60,7 @@ class AptusEntranceDoorLock(CoordinatorEntity[AptusDataUpdateCoordinator], LockE
 
     async def async_unlock(self, **kwargs: Any) -> None:
         """Unlock the entrance door."""
-        result = await doors.unlock_entrance_door(
-            self.coordinator.client, self._door.id
-        )
+        result = await doors.unlock_entrance_door(self.coordinator.client, self._door.id)
         if result.success:
             self._is_locked = False
             self.async_write_ha_state()

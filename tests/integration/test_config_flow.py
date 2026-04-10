@@ -2,17 +2,15 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.aptus.const import DOMAIN
 from custom_components.aptus.aptus_client.exceptions import (
     AptusAuthError,
     AptusConnectionError,
 )
-
-from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import TEST_BASE_URL, TEST_PASSWORD, TEST_USERNAME
 
@@ -28,12 +26,8 @@ class TestAptusConfigFlow:
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "user"
 
-    async def test_it_should_create_entry_on_successful_login(
-        self, hass: HomeAssistant
-    ):
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+    async def test_it_should_create_entry_on_successful_login(self, hass: HomeAssistant):
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -52,12 +46,8 @@ class TestAptusConfigFlow:
         assert result["type"] == FlowResultType.CREATE_ENTRY
         assert result["title"] == "Aptus"
 
-    async def test_it_should_store_base_url_username_and_password(
-        self, hass: HomeAssistant
-    ):
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+    async def test_it_should_store_base_url_username_and_password(self, hass: HomeAssistant):
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -77,12 +67,8 @@ class TestAptusConfigFlow:
         assert result["data"]["username"] == TEST_USERNAME
         assert result["data"]["password"] == TEST_PASSWORD
 
-    async def test_it_should_set_unique_id_from_base_url_and_username(
-        self, hass: HomeAssistant
-    ):
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+    async def test_it_should_set_unique_id_from_base_url_and_username(self, hass: HomeAssistant):
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -103,12 +89,8 @@ class TestAptusConfigFlow:
         entry = hass.config_entries.async_entries(DOMAIN)[0]
         assert entry.unique_id == f"{TEST_BASE_URL}_{TEST_USERNAME}"
 
-    async def test_it_should_show_invalid_auth_on_login_failure(
-        self, hass: HomeAssistant
-    ):
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+    async def test_it_should_show_invalid_auth_on_login_failure(self, hass: HomeAssistant):
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.login.side_effect = AptusAuthError("bad creds")
             mock_client_cls.return_value = mock_client
@@ -128,12 +110,8 @@ class TestAptusConfigFlow:
         assert result["type"] == FlowResultType.FORM
         assert result["errors"] == {"base": "invalid_auth"}
 
-    async def test_it_should_show_cannot_connect_on_connection_error(
-        self, hass: HomeAssistant
-    ):
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+    async def test_it_should_show_cannot_connect_on_connection_error(self, hass: HomeAssistant):
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.login.side_effect = AptusConnectionError("timeout")
             mock_client_cls.return_value = mock_client
@@ -155,9 +133,7 @@ class TestAptusConfigFlow:
 
     async def test_it_should_abort_if_already_configured(self, hass: HomeAssistant):
         # Create first entry
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 
@@ -174,9 +150,7 @@ class TestAptusConfigFlow:
             )
 
         # Try creating duplicate
-        with patch(
-            "custom_components.aptus.config_flow.AptusClient"
-        ) as mock_client_cls:
+        with patch("custom_components.aptus.config_flow.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
 

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
-from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .aptus_client.models import LaundryBooking
 from .coordinator import AptusDataUpdateCoordinator
@@ -47,9 +46,10 @@ class AptusLaundryCalendar(CoordinatorEntity[AptusDataUpdateCoordinator], Calend
         if not bookings:
             return None
 
-        now = datetime.now()
+        now = dt_util.now()
+        tz = dt_util.DEFAULT_TIME_ZONE
         # Find next future booking, or the most recent one
-        future = [b for b in bookings if b.end > now]
+        future = [b for b in bookings if b.end.replace(tzinfo=tz) > now]
         if future:
             booking = min(future, key=lambda b: b.start)
         else:

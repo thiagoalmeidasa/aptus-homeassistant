@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 from datetime import date
+import re
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
@@ -26,9 +26,7 @@ async def get_laundry_category_id(client: AptusClient) -> str:
     return payload.split("|")[0]
 
 
-async def list_laundry_groups(
-    client: AptusClient, category_id: str
-) -> list[LaundryGroup]:
+async def list_laundry_groups(client: AptusClient, category_id: str) -> list[LaundryGroup]:
     """List available laundry groups/facilities for a category."""
     r = await client.get(
         "CustomerBooking/CustomerLocationGroups",
@@ -42,9 +40,7 @@ async def list_laundry_groups(
         onclick = btn.get("onclick", "")
         match = re.search(r"SelectBookingGroup\((\d+)\)", onclick)
         if match:
-            groups.append(
-                LaundryGroup(id=match.group(1), name=btn.get_text(strip=True))
-            )
+            groups.append(LaundryGroup(id=match.group(1), name=btn.get_text(strip=True)))
     return groups
 
 
@@ -62,9 +58,7 @@ async def get_first_available_slots(
     slots: list[TimeSlot] = []
     for card in soup.select(".firstAvailableCard[onclick*=BookFirstAvailable]"):
         onclick = card.get("onclick", "")
-        match = re.search(
-            r"BookFirstAvailable\((\d+),\s*'([^']+)',\s*(\d+)\)", onclick
-        )
+        match = re.search(r"BookFirstAvailable\((\d+),\s*'([^']+)',\s*(\d+)\)", onclick)
         if match:
             slots.append(
                 TimeSlot(

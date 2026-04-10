@@ -1,11 +1,11 @@
 """Shared fixtures for aptus_client tests."""
 
-import re
 from http.cookies import SimpleCookie
+import re
 
 import aiohttp
-import pytest_asyncio
 from aioresponses import aioresponses
+import pytest_asyncio
 from yarl import URL
 
 from custom_components.aptus.aptus_client import AptusClient
@@ -87,14 +87,13 @@ async def mock_aio():
 
 @pytest_asyncio.fixture
 async def logged_in_client(mock_aio):
-    """Yield a pre-authenticated AptusClient backed by aioresponses mocks.
+    """
+    Yield a pre-authenticated AptusClient backed by aioresponses mocks.
 
     Bypasses the real login flow by directly creating a session and
     injecting the .ASPXAUTH cookie.
     """
-    client = AptusClient(
-        base_url=TEST_BASE_URL, username="testuser", password="testpass"
-    )
+    client = AptusClient(base_url=TEST_BASE_URL, username="testuser", password="testpass")
     client._session = aiohttp.ClientSession(headers=client._headers)
     _inject_auth_cookie(client._session, TEST_BASE_URL)
 

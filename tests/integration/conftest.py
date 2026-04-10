@@ -11,7 +11,10 @@ import pytest
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable custom integrations for all integration tests."""
-    yield
+    return
+
+
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.aptus.aptus_client.models import (
     Door,
@@ -25,11 +28,6 @@ from custom_components.aptus.aptus_client.models import (
 )
 from custom_components.aptus.const import DOMAIN
 
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
 TEST_BASE_URL = "https://bokning.test.se/Aptusportal"
 TEST_USERNAME = "testuser"
 TEST_PASSWORD = "testpass"
@@ -39,9 +37,7 @@ MOCK_DOORS = [
     Door(id="100", name="Front Door", door_type=DoorType.ENTRANCE),
 ]
 
-MOCK_DOOR_STATUS = DoorStatus(
-    is_locked=True, battery_low=False, status_text="Door is locked"
-)
+MOCK_DOOR_STATUS = DoorStatus(is_locked=True, battery_low=False, status_text="Door is locked")
 
 MOCK_LAUNDRY_GROUPS = [
     LaundryGroup(id="185", name="Grupp 1"),
@@ -49,9 +45,7 @@ MOCK_LAUNDRY_GROUPS = [
 ]
 
 MOCK_BOOKINGS = [
-    LaundryBooking(
-        id="42", group_name="Grupp 1", date=date(2026, 4, 10), pass_no=5
-    ),
+    LaundryBooking(id="42", group_name="Grupp 1", date=date(2026, 4, 10), pass_no=5),
 ]
 
 MOCK_AVAILABLE_SLOTS = [
@@ -95,19 +89,20 @@ def mock_client_with_data(mock_aptus_client):
 
     with (
         patch.object(doors, "list_doors", return_value=MOCK_DOORS),
+        patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
         patch.object(
-            doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS
-        ),
-        patch.object(
-            doors, "unlock_entrance_door",
+            doors,
+            "unlock_entrance_door",
             return_value=UnlockResult(success=True, status_text="Door is open"),
         ),
         patch.object(
-            doors, "lock_apartment_door",
+            doors,
+            "lock_apartment_door",
             return_value=UnlockResult(success=True, status_text="Door is locked"),
         ),
         patch.object(
-            doors, "unlock_apartment_door",
+            doors,
+            "unlock_apartment_door",
             return_value=UnlockResult(success=True, status_text="Door is open"),
         ),
         patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),

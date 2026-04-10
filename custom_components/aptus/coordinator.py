@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
+import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .aptus_client import AptusClient
-from .aptus_client import doors, laundry
+from .aptus_client import AptusClient, doors, laundry
 from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from .const import DEFAULT_SCAN_INTERVAL
 

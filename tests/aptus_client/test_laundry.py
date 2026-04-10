@@ -1,10 +1,11 @@
 """BDD tests for Aptus client laundry operations."""
 
-import re
 from datetime import date
+import re
 
 import pytest
 
+from custom_components.aptus.aptus_client.exceptions import AptusParseError
 from custom_components.aptus.aptus_client.laundry import (
     book_slot,
     cancel_booking,
@@ -14,10 +15,7 @@ from custom_components.aptus.aptus_client.laundry import (
     list_bookings,
     list_laundry_groups,
 )
-from custom_components.aptus.aptus_client.exceptions import AptusParseError
 from custom_components.aptus.aptus_client.models import SlotState
-
-from .conftest import TEST_BASE_URL
 
 # --- HTML fixtures ---
 
@@ -93,9 +91,7 @@ BOOKINGS_EMPTY_HTML = """
 class TestGetCategoryId:
     """Describe get_laundry_category_id()."""
 
-    async def test_it_should_call_json_get_single_customer_category_id(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_json_get_single_customer_category_id(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/JsonGetSingleCustomerCategoryId.*"),
@@ -106,8 +102,7 @@ class TestGetCategoryId:
         category_id = await get_laundry_category_id(client)
 
         has_call = any(
-            "JsonGetSingleCustomerCategoryId" in str(url)
-            for (_, url) in mock_aio.requests
+            "JsonGetSingleCustomerCategoryId" in str(url) for (_, url) in mock_aio.requests
         )
         assert has_call
 
@@ -123,9 +118,7 @@ class TestGetCategoryId:
 
         assert category_id == "35"
 
-    async def test_it_should_raise_parse_error_on_unexpected_response(
-        self, logged_in_client
-    ):
+    async def test_it_should_raise_parse_error_on_unexpected_response(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/JsonGetSingleCustomerCategoryId.*"),
@@ -180,9 +173,7 @@ class TestListLaundryGroups:
 class TestGetFirstAvailableSlots:
     """Describe get_first_available_slots()."""
 
-    async def test_it_should_call_first_available_endpoint_with_category_id(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_first_available_endpoint_with_category_id(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/FirstAvailable.*"),
@@ -191,14 +182,10 @@ class TestGetFirstAvailableSlots:
 
         await get_first_available_slots(client, category_id="35")
 
-        has_call = any(
-            "FirstAvailable" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("FirstAvailable" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
-    async def test_it_should_parse_available_time_slots_from_html(
-        self, logged_in_client
-    ):
+    async def test_it_should_parse_available_time_slots_from_html(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/FirstAvailable.*"),
@@ -238,9 +225,7 @@ class TestGetFirstAvailableSlots:
 class TestGetWeeklyCalendar:
     """Describe get_weekly_calendar()."""
 
-    async def test_it_should_call_booking_calendar_with_group_id(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_booking_calendar_with_group_id(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/BookingCalendar.*"),
@@ -249,9 +234,7 @@ class TestGetWeeklyCalendar:
 
         await get_weekly_calendar(client, group_id="185")
 
-        has_call = any(
-            "BookingCalendar" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("BookingCalendar" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
     async def test_it_should_parse_day_columns_with_time_slots(self, logged_in_client):
@@ -265,9 +248,7 @@ class TestGetWeeklyCalendar:
 
         assert len(slots) == 3
 
-    async def test_it_should_mark_slots_as_bookable_owned_or_unavailable(
-        self, logged_in_client
-    ):
+    async def test_it_should_mark_slots_as_bookable_owned_or_unavailable(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/BookingCalendar.*"),
@@ -287,13 +268,9 @@ class TestGetWeeklyCalendar:
             body=WEEKLY_CALENDAR_HTML,
         )
 
-        await get_weekly_calendar(
-            client, group_id="185", pass_date="2026-04-10"
-        )
+        await get_weekly_calendar(client, group_id="185", pass_date="2026-04-10")
 
-        has_call = any(
-            "BookingCalendar" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("BookingCalendar" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
 
@@ -309,9 +286,7 @@ class TestListBookings:
 
         await list_bookings(client)
 
-        has_call = any(
-            "CustomerBooking" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("CustomerBooking" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
     async def test_it_should_parse_active_bookings_from_html(self, logged_in_client):
@@ -325,9 +300,7 @@ class TestListBookings:
 
         assert len(bookings) == 2
 
-    async def test_it_should_extract_booking_id_group_date_and_time(
-        self, logged_in_client
-    ):
+    async def test_it_should_extract_booking_id_group_date_and_time(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking$"),
@@ -356,22 +329,16 @@ class TestListBookings:
 class TestBookSlot:
     """Describe book_slot()."""
 
-    async def test_it_should_call_book_endpoint_with_pass_no_date_group(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_book_endpoint_with_pass_no_date_group(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/Book.*"),
             status=302,
         )
 
-        await book_slot(
-            client, pass_no=3, pass_date="2026-04-10", group_id="185"
-        )
+        await book_slot(client, pass_no=3, pass_date="2026-04-10", group_id="185")
 
-        has_call = any(
-            "CustomerBooking/Book" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("CustomerBooking/Book" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
     async def test_it_should_return_success_on_redirect(self, logged_in_client):
@@ -381,9 +348,7 @@ class TestBookSlot:
             status=302,
         )
 
-        result = await book_slot(
-            client, pass_no=3, pass_date="2026-04-10", group_id="185"
-        )
+        result = await book_slot(client, pass_no=3, pass_date="2026-04-10", group_id="185")
 
         assert result is True
 
@@ -394,9 +359,7 @@ class TestBookSlot:
             status=409,
         )
 
-        result = await book_slot(
-            client, pass_no=3, pass_date="2026-04-10", group_id="185"
-        )
+        result = await book_slot(client, pass_no=3, pass_date="2026-04-10", group_id="185")
 
         assert result is False
 
@@ -404,9 +367,7 @@ class TestBookSlot:
 class TestCancelBooking:
     """Describe cancel_booking()."""
 
-    async def test_it_should_call_unbook_endpoint_with_booking_id(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_unbook_endpoint_with_booking_id(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/CustomerBooking/Unbook/42"),
@@ -415,9 +376,7 @@ class TestCancelBooking:
 
         await cancel_booking(client, booking_id="42")
 
-        has_call = any(
-            "Unbook/42" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_call = any("Unbook/42" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
 
     async def test_it_should_return_success_on_redirect(self, logged_in_client):
