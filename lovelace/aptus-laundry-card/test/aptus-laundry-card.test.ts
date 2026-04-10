@@ -1,47 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type {
-  AptusLaundryCardConfig,
-  HomeAssistant,
-  HassEntity,
-  CalendarEvent,
-} from "../src/types";
+import type { AptusLaundryCardConfig, HomeAssistant } from "../src/types";
 
-function makeEntity(
-  entityId: string,
-  state: string,
-  attributes: Partial<HassEntity["attributes"]> = {}
-): HassEntity {
+function makeHass(): HomeAssistant {
   return {
-    entity_id: entityId,
-    state,
-    attributes: {
-      friendly_name: entityId.replace("sensor.", "").replace(/_/g, " "),
-      ...attributes,
-    },
-  };
-}
-
-function makeCalendarEvents(events: Partial<CalendarEvent>[]): CalendarEvent[] {
-  return events.map((e, i) => ({
-    summary: e.summary ?? `Laundry - Room ${i + 1}`,
-    start: e.start ?? "2026-04-11T08:30:00+02:00",
-    end: e.end ?? "2026-04-11T11:00:00+02:00",
-    ...e,
-  }));
-}
-
-function makeHass(
-  entities: HassEntity[],
-  calendarEvents: CalendarEvent[] = []
-): HomeAssistant {
-  const states: Record<string, HassEntity> = {};
-  for (const e of entities) {
-    states[e.entity_id] = e;
-  }
-  return {
-    states,
+    states: {},
     callService: vi.fn().mockResolvedValue(undefined),
-    callApi: vi.fn().mockResolvedValue(calendarEvents),
+    callApi: vi.fn().mockResolvedValue([]),
+    connection: {
+      sendMessagePromise: vi.fn().mockResolvedValue([]),
+    },
   };
 }
 
@@ -51,7 +18,6 @@ function createCard() {
     setConfig(config: AptusLaundryCardConfig): void;
     hass: HomeAssistant;
     shadowRoot: ShadowRoot;
-    updateComplete: Promise<boolean>;
   };
 }
 
@@ -64,9 +30,6 @@ async function renderCard(
   card.hass = hass;
   document.body.appendChild(card);
   await card.updateComplete;
-  // Wait for calendar API fetch to resolve
-  await new Promise((r) => setTimeout(r, 0));
-  await card.updateComplete;
   return card;
 }
 
@@ -76,10 +39,12 @@ declare global {
   }
 }
 
-const defaultConfig: AptusLaundryCardConfig = {
-  type: "custom:aptus-laundry-card",
-  calendar_entity: "calendar.aptus_laundry",
-};
+async function waitForUpdates(card: HTMLElement, tries = 5): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
 
 describe("AptusLaundryCard", () => {
   beforeEach(async () => {
@@ -87,182 +52,104 @@ describe("AptusLaundryCard", () => {
     await import("../src/aptus-laundry-card");
   });
 
-  describe("when configured with a calendar entity", () => {
-    it("should fetch events from the calendar API", async () => {
-      const hass = makeHass([], []);
-      await renderCard(defaultConfig, hass);
+  describe("when configured with default sections", () => {
+    it("should render all three sections", async () => {
+      const hass = makeHass();
+      // Mock entries response for auto-select
+      (hass.connection.sendMessagePromise as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { entry_id: "test-entry", title: "Aptus Test" },
+      ]);
 
-      expect(hass.callApi).toHaveBeenCalledWith(
-        "GET",
-        expect.stringContaining("calendars/calendar.aptus_laundry")
+      const card = await renderCard(
+        { type: "custom:aptus-laundry-card" },
+        hass
       );
-    });
+      await waitForUpdates(card);
 
-    it("should render a booking row for each calendar event", async () => {
-      const events = makeCalendarEvents([
-        { summary: "Laundry - Room A", start: "2026-04-11T08:30:00+02:00", end: "2026-04-11T11:00:00+02:00" },
-        { summary: "Laundry - Room B", start: "2026-04-12T13:30:00+02:00", end: "2026-04-12T16:00:00+02:00" },
-      ]);
-      const hass = makeHass([], events);
-      const card = await renderCard(defaultConfig, hass);
+      const bookings = card.shadowRoot!.querySelector("aptus-laundry-bookings");
+      const firstAvailable = card.shadowRoot!.querySelector("aptus-laundry-first-available");
+      const calendar = card.shadowRoot!.querySelector("aptus-laundry-calendar");
 
-      const rows = card.shadowRoot!.querySelectorAll(".booking-row");
-      expect(rows).toHaveLength(2);
-    });
-
-    it("should display the event summary in each booking row", async () => {
-      const events = makeCalendarEvents([
-        { summary: "Laundry - Tvättstuga 1" },
-      ]);
-      const hass = makeHass([], events);
-      const card = await renderCard(defaultConfig, hass);
-
-      const summary = card.shadowRoot!.querySelector(".booking-summary");
-      expect(summary?.textContent).toContain("Laundry - Tvättstuga 1");
-    });
-
-    it("should display the date and time for each booking", async () => {
-      const events = makeCalendarEvents([
-        { start: "2026-04-11T08:30:00+02:00", end: "2026-04-11T11:00:00+02:00" },
-      ]);
-      const hass = makeHass([], events);
-      const card = await renderCard(defaultConfig, hass);
-
-      const time = card.shadowRoot!.querySelector(".booking-time");
-      expect(time?.textContent).toContain("08:30");
-      expect(time?.textContent).toContain("11:00");
-    });
-
-    it("should show an empty state when there are no bookings", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
-
-      const empty = card.shadowRoot!.querySelector(".empty-state");
-      expect(empty).not.toBeNull();
-      expect(empty?.textContent).toContain("No upcoming bookings");
+      expect(bookings).not.toBeNull();
+      expect(firstAvailable).not.toBeNull();
+      expect(calendar).not.toBeNull();
     });
   });
 
-  describe("when the user cancels a booking", () => {
-    it("should render a cancel button on each booking row", async () => {
-      const events = makeCalendarEvents([
-        { summary: "Laundry - Room A", uid: "booking-123" },
+  describe("when configured with specific sections", () => {
+    it("should render only the configured sections", async () => {
+      const hass = makeHass();
+      (hass.connection.sendMessagePromise as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { entry_id: "test-entry", title: "Aptus Test" },
       ]);
-      const hass = makeHass([], events);
-      const card = await renderCard(defaultConfig, hass);
 
-      const cancelBtn = card.shadowRoot!.querySelector(".cancel-button");
-      expect(cancelBtn).not.toBeNull();
-    });
+      const card = await renderCard(
+        {
+          type: "custom:aptus-laundry-card",
+          sections: [{ type: "my-bookings" }],
+        },
+        hass
+      );
+      await waitForUpdates(card);
 
-    it("should call aptus.cancel_laundry with the booking uid", async () => {
-      const events = makeCalendarEvents([
-        { summary: "Laundry - Room A", uid: "booking-456" },
-      ]);
-      const hass = makeHass([], events);
-      const card = await renderCard(defaultConfig, hass);
+      const bookings = card.shadowRoot!.querySelector("aptus-laundry-bookings");
+      const firstAvailable = card.shadowRoot!.querySelector("aptus-laundry-first-available");
+      const calendar = card.shadowRoot!.querySelector("aptus-laundry-calendar");
 
-      const cancelBtn = card.shadowRoot!.querySelector(".cancel-button") as HTMLElement;
-      cancelBtn.click();
-
-      expect(hass.callService).toHaveBeenCalledWith("aptus", "cancel_laundry", {
-        booking_id: "booking-456",
-      });
+      expect(bookings).not.toBeNull();
+      expect(firstAvailable).toBeNull();
+      expect(calendar).toBeNull();
     });
   });
 
-  describe("when the user books a new slot", () => {
-    it("should render a booking form section", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
+  describe("when entry_id is set in config", () => {
+    it("should skip entry discovery", async () => {
+      const hass = makeHass();
 
-      const form = card.shadowRoot!.querySelector(".booking-form");
-      expect(form).not.toBeNull();
-    });
+      const card = await renderCard(
+        {
+          type: "custom:aptus-laundry-card",
+          entry_id: "my-entry-id",
+        },
+        hass
+      );
 
-    it("should have a date input", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
-
-      const dateInput = card.shadowRoot!.querySelector('input[type="date"]');
-      expect(dateInput).not.toBeNull();
-    });
-
-    it("should have a time slot selector", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
-
-      const slotSelect = card.shadowRoot!.querySelector(".slot-select");
-      expect(slotSelect).not.toBeNull();
-    });
-
-    it("should have a group ID input", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
-
-      const groupInput = card.shadowRoot!.querySelector(".group-input");
-      expect(groupInput).not.toBeNull();
-    });
-
-    it("should call aptus.book_laundry when the book button is clicked", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
-
-      // Fill in the form
-      const dateInput = card.shadowRoot!.querySelector('input[type="date"]') as HTMLInputElement;
-      dateInput.value = "2026-04-15";
-      dateInput.dispatchEvent(new Event("change"));
-
-      const slotSelect = card.shadowRoot!.querySelector(".slot-select") as HTMLSelectElement;
-      slotSelect.value = "3";
-      slotSelect.dispatchEvent(new Event("change"));
-
-      const groupInput = card.shadowRoot!.querySelector(".group-input") as HTMLInputElement;
-      groupInput.value = "group-1";
-      groupInput.dispatchEvent(new Event("input"));
-
-      await card.updateComplete;
-
-      const bookBtn = card.shadowRoot!.querySelector(".book-button") as HTMLElement;
-      bookBtn.click();
-
-      expect(hass.callService).toHaveBeenCalledWith("aptus", "book_laundry", {
-        pass_no: 3,
-        pass_date: "2026-04-15",
-        group_id: "group-1",
-      });
+      // Should not call aptus/entries
+      const calls = (hass.connection.sendMessagePromise as ReturnType<typeof vi.fn>).mock.calls;
+      const entryCalls = calls.filter((c: unknown[]) => (c[0] as Record<string, unknown>).type === "aptus/entries");
+      expect(entryCalls).toHaveLength(0);
     });
   });
 
   describe("when the card title is configured", () => {
     it("should display the title in the card header", async () => {
-      const hass = makeHass([], []);
+      const hass = makeHass();
+      (hass.connection.sendMessagePromise as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { entry_id: "test-entry", title: "Aptus Test" },
+      ]);
+
       const card = await renderCard(
-        { ...defaultConfig, title: "Laundry Bookings" },
+        { type: "custom:aptus-laundry-card", title: "Laundry" },
         hass
       );
 
       const header = card.shadowRoot!.querySelector(".card-header");
-      expect(header?.textContent).toContain("Laundry Bookings");
+      expect(header?.textContent).toContain("Laundry");
     });
 
     it("should not render a header when no title is set", async () => {
-      const hass = makeHass([], []);
-      const card = await renderCard(defaultConfig, hass);
+      const hass = makeHass();
+      (hass.connection.sendMessagePromise as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { entry_id: "test-entry", title: "Aptus Test" },
+      ]);
+
+      const card = await renderCard(
+        { type: "custom:aptus-laundry-card" },
+        hass
+      );
 
       const header = card.shadowRoot!.querySelector(".card-header");
       expect(header).toBeNull();
-    });
-  });
-
-  describe("when setConfig is called with invalid config", () => {
-    it("should throw if calendar_entity is missing", async () => {
-      await import("../src/aptus-laundry-card");
-      const card = createCard();
-
-      expect(() => {
-        card.setConfig({ type: "custom:aptus-laundry-card" } as AptusLaundryCardConfig);
-      }).toThrow();
     });
   });
 });
