@@ -55,6 +55,7 @@ export interface TimeSlot {
   state: "available" | "unavailable" | "owned";
   start_time: string;
   end_time: string;
+  group_name?: string;
 }
 
 export interface LaundryBooking {

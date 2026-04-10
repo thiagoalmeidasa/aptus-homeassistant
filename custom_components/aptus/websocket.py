@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _slot_to_dict(slot: TimeSlot) -> dict[str, Any]:
     """Serialize a TimeSlot to a dict for websocket response."""
-    return {
+    result: dict[str, Any] = {
         "pass_no": slot.pass_no,
         "date": slot.date.isoformat(),
         "group_id": slot.group_id,
@@ -27,6 +27,9 @@ def _slot_to_dict(slot: TimeSlot) -> dict[str, Any]:
         "start_time": slot.start_time.strftime("%H:%M"),
         "end_time": slot.end_time.strftime("%H:%M"),
     }
+    if slot.group_name:
+        result["group_name"] = slot.group_name
+    return result
 
 
 def _booking_to_dict(booking: LaundryBooking) -> dict[str, Any]:
