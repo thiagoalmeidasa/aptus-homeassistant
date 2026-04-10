@@ -63,9 +63,11 @@ class TestEncryptPassword:
 class TestAptusClientLogin:
     """Describe AptusClient.login()."""
 
-    async def test_it_should_set_language_to_english_before_login(self, mock_aio):
+    async def test_it_should_set_language_to_english_before_login(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         try:
             await client.login()
@@ -79,11 +81,11 @@ class TestAptusClientLogin:
         )
         assert has_lang_call
 
-        await client.close()
-
-    async def test_it_should_extract_csrf_token_and_salt_from_login_page(self, mock_aio):
+    async def test_it_should_extract_csrf_token_and_salt_from_login_page(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "user", "testpass")
+        client = AptusClient(TEST_BASE_URL, "user", "testpass", session=aiohttp_session)
 
         try:
             await client.login()
@@ -96,11 +98,11 @@ class TestAptusClientLogin:
         assert form_data["PasswordSalt"] == "667"
         assert form_data["PwEnc"] == encrypt_password("testpass", 667)
 
-        await client.close()
-
-    async def test_it_should_post_encrypted_password_with_form_data(self, mock_aio):
+    async def test_it_should_post_encrypted_password_with_form_data(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "myuser", "mypass")
+        client = AptusClient(TEST_BASE_URL, "myuser", "mypass", session=aiohttp_session)
 
         try:
             await client.login()
@@ -113,84 +115,78 @@ class TestAptusClientLogin:
         assert form_data["DeviceType"] == "PC"
         assert form_data["DesktopSelected"] == "true"
 
-        await client.close()
-
-    async def test_it_should_succeed_when_aspxauth_cookie_is_received(self, mock_aio):
+    async def test_it_should_succeed_when_aspxauth_cookie_is_received(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
 
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
-        # Monkey-patch to inject cookie before validation
-        original_login = client.login.__func__
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
-        async def patched_login(self_):
-            self_._session = aiohttp.ClientSession(headers=self_._headers)
-            await self_._session.get(
-                f"{TEST_BASE_URL}/Account/SetCustomerLanguage?lang=en-GB",
-                allow_redirects=False,
-            )
-            await self_._session.get(
-                f"{TEST_BASE_URL}/Account/Login",
-                params={"ReturnUrl": "/Aptusportal/"},
-            )
-            await self_._session.post(
-                f"{TEST_BASE_URL}/Account/Login",
-                params={"ReturnUrl": "/Aptusportal/"},
-                data={},
-                allow_redirects=False,
-            )
-            _inject_auth_cookie(self_._session, TEST_BASE_URL)
-            cookies = {c.key for c in self_._session.cookie_jar}
-            if ".ASPXAUTH" not in cookies:
-                raise AptusAuthError("Login failed")
+        await aiohttp_session.get(
+            f"{TEST_BASE_URL}/Account/SetCustomerLanguage?lang=en-GB",
+            allow_redirects=False,
+        )
+        await aiohttp_session.get(
+            f"{TEST_BASE_URL}/Account/Login",
+            params={"ReturnUrl": "/Aptusportal/"},
+        )
+        await aiohttp_session.post(
+            f"{TEST_BASE_URL}/Account/Login",
+            params={"ReturnUrl": "/Aptusportal/"},
+            data={},
+            allow_redirects=False,
+        )
+        _inject_auth_cookie(aiohttp_session, TEST_BASE_URL)
+        cookies = {c.key for c in aiohttp_session.cookie_jar}
+        assert ".ASPXAUTH" in cookies  # Should not raise
 
-        await patched_login(client)  # Should not raise
-        await client.close()
-
-    async def test_it_should_raise_auth_error_when_no_auth_cookie(self, mock_aio):
+    async def test_it_should_raise_auth_error_when_no_auth_cookie(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "user", "badpass")
+        client = AptusClient(TEST_BASE_URL, "user", "badpass", session=aiohttp_session)
 
         with pytest.raises(AptusAuthError):
             await client.login()
 
-        await client.close()
-
-    async def test_it_should_raise_connection_error_on_network_failure(self, mock_aio):
+    async def test_it_should_raise_connection_error_on_network_failure(
+        self, mock_aio, aiohttp_session
+    ):
         mock_aio.get(
             LANG_URL_RE,
             exception=aiohttp.ClientError("Connection refused"),
         )
 
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         with pytest.raises(AptusConnectionError):
             await client.login()
 
-        await client.close()
-
-    async def test_it_should_raise_parse_error_when_csrf_token_missing(self, mock_aio):
+    async def test_it_should_raise_parse_error_when_csrf_token_missing(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio, login_html=LOGIN_PAGE_NO_TOKEN_HTML)
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         with pytest.raises(AptusParseError):
             await client.login()
 
-        await client.close()
-
-    async def test_it_should_raise_parse_error_when_salt_missing(self, mock_aio):
+    async def test_it_should_raise_parse_error_when_salt_missing(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio, login_html=LOGIN_PAGE_NO_SALT_HTML)
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         with pytest.raises(AptusParseError):
             await client.login()
 
-        await client.close()
-
-    async def test_it_should_work_with_different_base_urls(self, mock_aio):
+    async def test_it_should_work_with_different_base_urls(
+        self, mock_aio, aiohttp_session
+    ):
         other_url = "https://sssb.aptustotal.se/AptusPortal"
         _setup_login_mocks(mock_aio, base_url=other_url)
 
-        client = AptusClient(other_url, "user", "pass")
+        client = AptusClient(other_url, "user", "pass", session=aiohttp_session)
         try:
             await client.login()
         except AptusAuthError:
@@ -202,16 +198,23 @@ class TestAptusClientLogin:
         )
         assert has_lang_call
 
-        await client.close()
-
 
 class TestAptusClientSessionLifecycle:
     """Describe AptusClient session lifecycle."""
 
-    async def test_it_should_create_session_on_login_if_none_provided(self, mock_aio):
+    async def test_it_should_use_provided_session(self, mock_aio, aiohttp_session):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
-        assert client._session is None
+        client = AptusClient(
+            TEST_BASE_URL, "user", "pass", session=aiohttp_session
+        )
+
+        assert client._session is aiohttp_session
+
+    async def test_it_should_create_session_on_login_if_none_provided(
+        self, mock_aio, aiohttp_session
+    ):
+        _setup_login_mocks(mock_aio)
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         try:
             await client.login()
@@ -219,26 +222,28 @@ class TestAptusClientSessionLifecycle:
             pass
 
         assert client._session is not None
-        await client.close()
 
-    async def test_it_should_close_session_on_close(self, mock_aio):
+    async def test_it_should_close_session_on_close(self, mock_aio, aiohttp_session):
         _setup_login_mocks(mock_aio)
-        client = AptusClient(TEST_BASE_URL, "user", "pass")
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
 
         try:
             await client.login()
         except AptusAuthError:
             pass
 
-        session = client._session
         await client.close()
-        assert session.closed
+        assert aiohttp_session.closed
 
-    async def test_it_should_support_async_context_manager(self, mock_aio):
+    async def test_it_should_support_async_context_manager(
+        self, mock_aio, aiohttp_session
+    ):
         _setup_login_mocks(mock_aio)
 
         try:
-            async with AptusClient(TEST_BASE_URL, "user", "pass") as client:
+            async with AptusClient(
+                TEST_BASE_URL, "user", "pass", session=aiohttp_session
+            ) as client:
                 pass
         except AptusAuthError:
             pass
@@ -248,3 +253,37 @@ class TestAptusClientSessionLifecycle:
 
         with pytest.raises(RuntimeError):
             _ = client.session
+
+
+class TestCheckResponse:
+    """Describe AptusClient._check_response() redirect detection."""
+
+    async def test_it_should_raise_auth_error_when_redirected_to_error_page(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(re.compile(r".*/Account/Error"), status=200, body="<html>Error</html>")
+
+        with pytest.raises(AptusAuthError, match="error page"):
+            await client.get("Account/Error")
+
+    async def test_it_should_raise_auth_error_when_redirected_to_login_page(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(re.compile(r".*/Account/Login"), status=200, body="<html>Login</html>")
+
+        with pytest.raises(AptusAuthError, match="login"):
+            await client.get("Account/Login")
+
+    async def test_it_should_not_raise_for_normal_responses(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/Lock/UnlockEntryDoor/123"),
+            payload={"StatusText": "OK", "HeaderStatusText": "OK"},
+        )
+
+        response = await client.get("Lock/UnlockEntryDoor/123")
+        data = await response.json()
+
+        assert data["HeaderStatusText"] == "OK"
