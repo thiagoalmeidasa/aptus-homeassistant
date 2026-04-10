@@ -2,17 +2,15 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from custom_components.aptus.const import DOMAIN
-from custom_components.aptus.aptus_client import doors, laundry
-from custom_components.aptus.aptus_client.exceptions import (
-    AptusAuthError,
-    AptusConnectionError,
-)
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.aptus_client.exceptions import (
+    AptusConnectionError,
+)
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_BOOKINGS,
@@ -22,8 +20,6 @@ from .conftest import (
     TEST_PASSWORD,
     TEST_USERNAME,
 )
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 def _make_entry(hass: HomeAssistant) -> MockConfigEntry:
@@ -59,7 +55,9 @@ class TestAsyncSetupEntry:
         p1, p2, p3 = _patch_data_fetchers()
         with (
             patch("custom_components.aptus.AptusClient") as mock_client_cls,
-            p1, p2, p3,
+            p1,
+            p2,
+            p3,
         ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
@@ -74,15 +72,15 @@ class TestAsyncSetupEntry:
         )
         mock_client.login.assert_awaited_once()
 
-    async def test_it_should_store_coordinator_in_runtime_data(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_store_coordinator_in_runtime_data(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         p1, p2, p3 = _patch_data_fetchers()
         with (
             patch("custom_components.aptus.AptusClient") as mock_client_cls,
-            p1, p2, p3,
+            p1,
+            p2,
+            p3,
         ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
@@ -99,7 +97,9 @@ class TestAsyncSetupEntry:
         p1, p2, p3 = _patch_data_fetchers()
         with (
             patch("custom_components.aptus.AptusClient") as mock_client_cls,
-            p1, p2, p3,
+            p1,
+            p2,
+            p3,
         ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
@@ -109,14 +109,10 @@ class TestAsyncSetupEntry:
 
         assert entry.state == ConfigEntryState.LOADED
 
-    async def test_it_should_raise_not_ready_on_connection_error(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_raise_not_ready_on_connection_error(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
-        with patch(
-            "custom_components.aptus.AptusClient"
-        ) as mock_client_cls:
+        with patch("custom_components.aptus.AptusClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.login.side_effect = AptusConnectionError("timeout")
             mock_client_cls.return_value = mock_client
@@ -130,15 +126,15 @@ class TestAsyncSetupEntry:
 class TestAsyncUnloadEntry:
     """Describe async_unload_entry."""
 
-    async def test_it_should_close_client_and_unload_platforms(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_close_client_and_unload_platforms(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         p1, p2, p3 = _patch_data_fetchers()
         with (
             patch("custom_components.aptus.AptusClient") as mock_client_cls,
-            p1, p2, p3,
+            p1,
+            p2,
+            p3,
         ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client

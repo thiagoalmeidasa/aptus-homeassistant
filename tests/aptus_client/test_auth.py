@@ -4,7 +4,6 @@ import re
 
 import aiohttp
 import pytest
-from aioresponses import aioresponses
 
 from custom_components.aptus.aptus_client import AptusClient
 from custom_components.aptus.aptus_client.auth import encrypt_password
@@ -82,9 +81,7 @@ class TestAptusClientLogin:
 
         await client.close()
 
-    async def test_it_should_extract_csrf_token_and_salt_from_login_page(
-        self, mock_aio
-    ):
+    async def test_it_should_extract_csrf_token_and_salt_from_login_page(self, mock_aio):
         _setup_login_mocks(mock_aio)
         client = AptusClient(TEST_BASE_URL, "user", "testpass")
 

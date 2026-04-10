@@ -34,9 +34,7 @@ class TestDoorStatus:
     """Describe DoorStatus dataclass."""
 
     def test_it_should_store_lock_state_and_battery_info(self):
-        status = DoorStatus(
-            is_locked=True, battery_low=False, status_text="Door is locked"
-        )
+        status = DoorStatus(is_locked=True, battery_low=False, status_text="Door is locked")
 
         assert status.is_locked is True
         assert status.battery_low is False

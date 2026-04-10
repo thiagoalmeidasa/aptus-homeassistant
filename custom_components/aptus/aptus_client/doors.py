@@ -26,9 +26,7 @@ async def list_doors(client: AptusClient) -> list[Door]:
         if match:
             span = card.find("span")
             name = span.get_text(strip=True) if span else card_id
-            doors.append(
-                Door(id=match.group(1), name=name, door_type=DoorType.ENTRANCE)
-            )
+            doors.append(Door(id=match.group(1), name=name, door_type=DoorType.ENTRANCE))
     return doors
 
 

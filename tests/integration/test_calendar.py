@@ -1,16 +1,12 @@
 """BDD tests for Aptus laundry calendar entity."""
 
-from datetime import date, datetime
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from custom_components.aptus.const import DOMAIN
-from custom_components.aptus.aptus_client import doors, laundry
-
 from homeassistant.core import HomeAssistant
-
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_BOOKINGS,
@@ -56,9 +52,7 @@ class TestAptusLaundryCalendar:
             state = hass.states.get("calendar.laundry")
             assert state is not None
 
-    async def test_it_should_expose_bookings_as_calendar_events(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_expose_bookings_as_calendar_events(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -78,9 +72,7 @@ class TestAptusLaundryCalendar:
             # The event attributes should be set
             assert state.attributes.get("message") == "Laundry - Grupp 1"
 
-    async def test_it_should_set_event_start_and_end_from_time_slot(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_set_event_start_and_end_from_time_slot(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (

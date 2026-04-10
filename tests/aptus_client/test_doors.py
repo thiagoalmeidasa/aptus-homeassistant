@@ -2,8 +2,6 @@
 
 import re
 
-import pytest
-
 from custom_components.aptus.aptus_client.doors import (
     get_apartment_door_status,
     list_doors,
@@ -18,16 +16,13 @@ from .conftest import (
     LOCK_PAGE_INVALID_ID_HTML,
     LOCK_PAGE_MULTIPLE_DOORS_HTML,
     LOCK_PAGE_SINGLE_DOOR_HTML,
-    TEST_BASE_URL,
 )
 
 
 class TestListDoors:
     """Describe list_doors()."""
 
-    async def test_it_should_parse_entrance_doors_from_lock_page_html(
-        self, logged_in_client
-    ):
+    async def test_it_should_parse_entrance_doors_from_lock_page_html(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(re.compile(r".*/Lock$"), body=LOCK_PAGE_SINGLE_DOOR_HTML)
 
@@ -36,9 +31,7 @@ class TestListDoors:
         assert len(doors) == 1
         assert doors[0].door_type == DoorType.ENTRANCE
 
-    async def test_it_should_extract_door_id_from_div_id_attribute(
-        self, logged_in_client
-    ):
+    async def test_it_should_extract_door_id_from_div_id_attribute(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(re.compile(r".*/Lock$"), body=LOCK_PAGE_SINGLE_DOOR_HTML)
 
@@ -54,9 +47,7 @@ class TestListDoors:
 
         assert doors[0].name == "919:3-00-01 Kilsmogatan 7 Entre"
 
-    async def test_it_should_return_empty_list_when_no_doors_found(
-        self, logged_in_client
-    ):
+    async def test_it_should_return_empty_list_when_no_doors_found(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(re.compile(r".*/Lock$"), body=LOCK_PAGE_EMPTY_HTML)
 
@@ -87,9 +78,7 @@ class TestListDoors:
 class TestUnlockEntranceDoor:
     """Describe unlock_entrance_door()."""
 
-    async def test_it_should_call_unlock_entry_door_endpoint_with_door_id(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_unlock_entry_door_endpoint_with_door_id(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/12227"),
@@ -98,14 +87,10 @@ class TestUnlockEntranceDoor:
 
         result = await unlock_entrance_door(client, "12227")
 
-        has_unlock_call = any(
-            "UnlockEntryDoor/12227" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_unlock_call = any("UnlockEntryDoor/12227" in str(url) for (_, url) in mock_aio.requests)
         assert has_unlock_call
 
-    async def test_it_should_return_unlock_result_with_status_text(
-        self, logged_in_client
-    ):
+    async def test_it_should_return_unlock_result_with_status_text(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/.*"),
@@ -116,9 +101,7 @@ class TestUnlockEntranceDoor:
 
         assert result.status_text == "Door is open"
 
-    async def test_it_should_return_success_true_when_door_opens(
-        self, logged_in_client
-    ):
+    async def test_it_should_return_success_true_when_door_opens(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/.*"),
@@ -129,9 +112,7 @@ class TestUnlockEntranceDoor:
 
         assert result.success is True
 
-    async def test_it_should_return_success_false_on_error_response(
-        self, logged_in_client
-    ):
+    async def test_it_should_return_success_false_on_error_response(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/.*"),
@@ -160,14 +141,10 @@ class TestApartmentDoorStatus:
 
         status = await get_apartment_door_status(client)
 
-        has_status_call = any(
-            "DoormanLockStatus" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_status_call = any("DoormanLockStatus" in str(url) for (_, url) in mock_aio.requests)
         assert has_status_call
 
-    async def test_it_should_return_locked_when_is_closed_and_locked(
-        self, logged_in_client
-    ):
+    async def test_it_should_return_locked_when_is_closed_and_locked(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(re.compile(r".*/Lock/SetLockStatusTempData"), status=200)
         mock_aio.get(
@@ -228,9 +205,7 @@ class TestLockApartmentDoor:
 
         await lock_apartment_door(client)
 
-        has_lock_call = any(
-            "LockDoormanLock" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_lock_call = any("LockDoormanLock" in str(url) for (_, url) in mock_aio.requests)
         assert has_lock_call
 
     async def test_it_should_return_success_on_200(self, logged_in_client):
@@ -248,9 +223,7 @@ class TestLockApartmentDoor:
 class TestUnlockApartmentDoor:
     """Describe unlock_apartment_door()."""
 
-    async def test_it_should_call_unlock_doorman_lock_with_code_param(
-        self, logged_in_client
-    ):
+    async def test_it_should_call_unlock_doorman_lock_with_code_param(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockDoormanLock.*"),
@@ -259,9 +232,7 @@ class TestUnlockApartmentDoor:
 
         await unlock_apartment_door(client, code="mypass")
 
-        has_unlock_call = any(
-            "UnlockDoormanLock" in str(url) for (_, url) in mock_aio.requests
-        )
+        has_unlock_call = any("UnlockDoormanLock" in str(url) for (_, url) in mock_aio.requests)
         assert has_unlock_call
 
     async def test_it_should_return_success_on_200(self, logged_in_client):

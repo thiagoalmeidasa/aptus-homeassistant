@@ -2,17 +2,14 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from custom_components.aptus.const import DOMAIN
-from custom_components.aptus.aptus_client import doors, laundry
-from custom_components.aptus.aptus_client.models import UnlockResult
-
 from homeassistant.components.lock import DOMAIN as LOCK_DOMAIN, SERVICE_LOCK, SERVICE_UNLOCK
 from homeassistant.const import ATTR_ENTITY_ID, STATE_LOCKED, STATE_UNLOCKED
 from homeassistant.core import HomeAssistant
-
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.aptus_client.models import UnlockResult
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_BOOKINGS,
@@ -59,26 +56,23 @@ async def _setup_integration(hass: HomeAssistant, entry: MockConfigEntry):
 class TestAptusEntranceDoorLock:
     """Describe entrance door lock entity."""
 
-    async def test_it_should_create_one_entity_per_entrance_door(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_create_one_entity_per_entrance_door(self, hass: HomeAssistant):
         entry = _make_entry(hass)
         await _setup_integration(hass, entry)
 
         # Should have 2 entrance door entities
-        state1 = hass.states.get(f"lock.kilsmogatan_7_entre")
-        state2 = hass.states.get(f"lock.front_door")
+        state1 = hass.states.get("lock.kilsmogatan_7_entre")
+        state2 = hass.states.get("lock.front_door")
 
         assert state1 is not None
         assert state2 is not None
 
-    async def test_it_should_have_unique_id_from_entry_and_door_id(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_have_unique_id_from_entry_and_door_id(self, hass: HomeAssistant):
         entry = _make_entry(hass)
         await _setup_integration(hass, entry)
 
         from homeassistant.helpers import entity_registry as er
+
         entity_registry = er.async_get(hass)
         ent = entity_registry.async_get("lock.kilsmogatan_7_entre")
         assert ent is not None
@@ -88,12 +82,10 @@ class TestAptusEntranceDoorLock:
         entry = _make_entry(hass)
         await _setup_integration(hass, entry)
 
-        state = hass.states.get(f"lock.kilsmogatan_7_entre")
+        state = hass.states.get("lock.kilsmogatan_7_entre")
         assert state.state == STATE_LOCKED
 
-    async def test_it_should_unlock_via_api_on_unlock_command(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_unlock_via_api_on_unlock_command(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -102,7 +94,8 @@ class TestAptusEntranceDoorLock:
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
             patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
             patch.object(
-                doors, "unlock_entrance_door",
+                doors,
+                "unlock_entrance_door",
                 return_value=UnlockResult(success=True, status_text="Door is open"),
             ) as mock_unlock,
         ):
@@ -121,9 +114,7 @@ class TestAptusEntranceDoorLock:
 
         mock_unlock.assert_awaited_once()
 
-    async def test_it_should_report_unlocked_briefly_after_unlock(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_report_unlocked_briefly_after_unlock(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -132,7 +123,8 @@ class TestAptusEntranceDoorLock:
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
             patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
             patch.object(
-                doors, "unlock_entrance_door",
+                doors,
+                "unlock_entrance_door",
                 return_value=UnlockResult(success=True, status_text="Door is open"),
             ),
         ):
@@ -172,9 +164,7 @@ class TestAptusEntranceDoorLock:
 class TestAptusApartmentDoorLock:
     """Describe apartment door lock entity."""
 
-    async def test_it_should_reflect_locked_state_from_coordinator(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_reflect_locked_state_from_coordinator(self, hass: HomeAssistant):
         entry = _make_entry(hass)
         await _setup_integration(hass, entry)
 
@@ -182,9 +172,7 @@ class TestAptusApartmentDoorLock:
         assert state is not None
         assert state.state == STATE_LOCKED
 
-    async def test_it_should_call_lock_api_on_lock_command(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_call_lock_api_on_lock_command(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -193,7 +181,8 @@ class TestAptusApartmentDoorLock:
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
             patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
             patch.object(
-                doors, "lock_apartment_door",
+                doors,
+                "lock_apartment_door",
                 return_value=UnlockResult(success=True, status_text="Locked"),
             ) as mock_lock,
         ):
@@ -212,9 +201,7 @@ class TestAptusApartmentDoorLock:
 
         mock_lock.assert_awaited_once()
 
-    async def test_it_should_call_unlock_api_on_unlock_command(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_call_unlock_api_on_unlock_command(self, hass: HomeAssistant):
         entry = _make_entry(hass)
 
         with (
@@ -223,7 +210,8 @@ class TestAptusApartmentDoorLock:
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
             patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
             patch.object(
-                doors, "unlock_apartment_door",
+                doors,
+                "unlock_apartment_door",
                 return_value=UnlockResult(success=True, status_text="Open"),
             ) as mock_unlock,
         ):
@@ -242,9 +230,7 @@ class TestAptusApartmentDoorLock:
 
         mock_unlock.assert_awaited_once()
 
-    async def test_it_should_report_battery_low_as_attribute(
-        self, hass: HomeAssistant
-    ):
+    async def test_it_should_report_battery_low_as_attribute(self, hass: HomeAssistant):
         entry = _make_entry(hass)
         await _setup_integration(hass, entry)
 

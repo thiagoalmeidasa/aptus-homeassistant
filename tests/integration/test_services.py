@@ -2,15 +2,12 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from custom_components.aptus.const import DOMAIN
-from custom_components.aptus.aptus_client import doors, laundry
-
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceNotFound
-
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.aptus.aptus_client import doors, laundry
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_BOOKINGS,

@@ -21,14 +21,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up Aptus sensor entities."""
     coordinator: AptusDataUpdateCoordinator = entry.runtime_data
-    async_add_entities([
-        AptusNextLaundryBookingSensor(coordinator, entry),
-    ])
+    async_add_entities(
+        [
+            AptusNextLaundryBookingSensor(coordinator, entry),
+        ]
+    )
 
 
-class AptusNextLaundryBookingSensor(
-    CoordinatorEntity[AptusDataUpdateCoordinator], SensorEntity
-):
+class AptusNextLaundryBookingSensor(CoordinatorEntity[AptusDataUpdateCoordinator], SensorEntity):
     """Sensor showing the next laundry booking datetime."""
 
     _attr_has_entity_name = True
