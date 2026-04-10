@@ -6,6 +6,7 @@
   "documentation": "https://github.com/thiagoalmeidasa/aptus-homeassistant",
   "issue_tracker": "https://github.com/thiagoalmeidasa/aptus-homeassistant/issues",
   "iot_class": "cloud_polling",
+  "loggers": ["custom_components.aptus"],
   "requirements": ["aiohttp>=3.9", "beautifulsoup4>=4.12"],
   "version": "0.2.0-rc.1"
 }
