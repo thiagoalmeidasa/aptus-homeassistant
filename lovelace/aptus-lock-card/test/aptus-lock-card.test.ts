@@ -58,7 +58,6 @@ declare global {
 describe("AptusLockCard", () => {
   beforeEach(async () => {
     document.body.innerHTML = "";
-    // Dynamic import so custom element is registered
     await import("../src/aptus-lock-card");
   });
 
@@ -117,8 +116,8 @@ describe("AptusLockCard", () => {
     });
   });
 
-  describe("when the user taps the unlock button", () => {
-    it("should call the lock.unlock service for a locked entity", async () => {
+  describe("when the entity is locked", () => {
+    it("should render a slide-to-unlock track", async () => {
       const hass = makeHass([makeEntity("lock.entrance_front", "locked")]);
 
       const card = await renderCard(
@@ -126,18 +125,28 @@ describe("AptusLockCard", () => {
         hass
       );
 
-      const button = card.shadowRoot!.querySelector(".lock-button") as HTMLElement;
-      button.click();
+      const slider = card.shadowRoot!.querySelector(".slider-track");
+      expect(slider).not.toBeNull();
 
-      expect(hass.callService).toHaveBeenCalledWith(
-        "lock",
-        "unlock",
-        {},
-        { entity_id: "lock.entrance_front" }
-      );
+      const label = card.shadowRoot!.querySelector(".slider-label");
+      expect(label?.textContent).toContain("Slide to unlock");
     });
 
-    it("should call the lock.lock service for an unlocked entity", async () => {
+    it("should not render the unlocked state", async () => {
+      const hass = makeHass([makeEntity("lock.entrance_front", "locked")]);
+
+      const card = await renderCard(
+        { type: "custom:aptus-lock-card", entities: ["lock.entrance_front"] },
+        hass
+      );
+
+      const unlocked = card.shadowRoot!.querySelector(".unlocked-state");
+      expect(unlocked).toBeNull();
+    });
+  });
+
+  describe("when the entity is unlocked", () => {
+    it("should render the unlocked state indicator", async () => {
       const hass = makeHass([makeEntity("lock.entrance_front", "unlocked")]);
 
       const card = await renderCard(
@@ -145,15 +154,21 @@ describe("AptusLockCard", () => {
         hass
       );
 
-      const button = card.shadowRoot!.querySelector(".lock-button") as HTMLElement;
-      button.click();
+      const unlocked = card.shadowRoot!.querySelector(".unlocked-state");
+      expect(unlocked).not.toBeNull();
+      expect(unlocked?.textContent).toContain("Unlocked");
+    });
 
-      expect(hass.callService).toHaveBeenCalledWith(
-        "lock",
-        "lock",
-        {},
-        { entity_id: "lock.entrance_front" }
+    it("should not render the slider track", async () => {
+      const hass = makeHass([makeEntity("lock.entrance_front", "unlocked")]);
+
+      const card = await renderCard(
+        { type: "custom:aptus-lock-card", entities: ["lock.entrance_front"] },
+        hass
       );
+
+      const slider = card.shadowRoot!.querySelector(".slider-track");
+      expect(slider).toBeNull();
     });
   });
 
