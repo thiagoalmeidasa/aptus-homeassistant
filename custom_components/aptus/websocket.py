@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 import voluptuous as vol
 
 from .aptus_client import laundry
+from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from .aptus_client.models import LaundryBooking, TimeSlot
 from .const import DOMAIN
 
@@ -68,9 +69,13 @@ async def ws_laundry_groups(
         connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
         return
 
-    category_id = await coordinator.get_category_id()
-    groups = await laundry.list_laundry_groups(coordinator.client, category_id)
-    connection.send_result(msg["id"], [{"id": g.id, "name": g.name} for g in groups])
+    try:
+        category_id = await coordinator.get_category_id()
+        groups = await laundry.list_laundry_groups(coordinator.client, category_id)
+        connection.send_result(msg["id"], [{"id": g.id, "name": g.name} for g in groups])
+    except (AptusAuthError, AptusConnectionError) as exc:
+        _LOGGER.debug("Failed to fetch laundry groups: %s", exc)
+        connection.send_result(msg["id"], [])
 
 
 @websocket_api.websocket_command(
@@ -89,11 +94,15 @@ async def ws_laundry_first_available(
         connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
         return
 
-    category_id = await coordinator.get_category_id()
-    slots = await laundry.get_first_available_slots(
-        coordinator.client, category_id, first_x=msg["first_x"]
-    )
-    connection.send_result(msg["id"], [_slot_to_dict(s) for s in slots])
+    try:
+        category_id = await coordinator.get_category_id()
+        slots = await laundry.get_first_available_slots(
+            coordinator.client, category_id, first_x=msg["first_x"]
+        )
+        connection.send_result(msg["id"], [_slot_to_dict(s) for s in slots])
+    except (AptusAuthError, AptusConnectionError) as exc:
+        _LOGGER.debug("Failed to fetch first available slots: %s", exc)
+        connection.send_result(msg["id"], [])
 
 
 @websocket_api.websocket_command(
@@ -113,10 +122,14 @@ async def ws_laundry_weekly_calendar(
         connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
         return
 
-    slots = await laundry.get_weekly_calendar(
-        coordinator.client, group_id=msg["group_id"], pass_date=msg.get("pass_date")
-    )
-    connection.send_result(msg["id"], [_slot_to_dict(s) for s in slots])
+    try:
+        slots = await laundry.get_weekly_calendar(
+            coordinator.client, group_id=msg["group_id"], pass_date=msg.get("pass_date")
+        )
+        connection.send_result(msg["id"], [_slot_to_dict(s) for s in slots])
+    except (AptusAuthError, AptusConnectionError) as exc:
+        _LOGGER.debug("Failed to fetch weekly calendar: %s", exc)
+        connection.send_result(msg["id"], [])
 
 
 @websocket_api.websocket_command({"type": "aptus/laundry/bookings"})
@@ -130,5 +143,9 @@ async def ws_laundry_bookings(
         connection.send_error(msg["id"], "not_found", "Aptus integration not configured")
         return
 
-    bookings = await laundry.list_bookings(coordinator.client)
-    connection.send_result(msg["id"], [_booking_to_dict(b) for b in bookings])
+    try:
+        bookings = await laundry.list_bookings(coordinator.client)
+        connection.send_result(msg["id"], [_booking_to_dict(b) for b in bookings])
+    except (AptusAuthError, AptusConnectionError) as exc:
+        _LOGGER.debug("Failed to fetch bookings: %s", exc)
+        connection.send_result(msg["id"], [])
