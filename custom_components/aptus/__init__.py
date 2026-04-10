@@ -48,20 +48,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: AptusConfigEntry) -> boo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    _register_frontend(hass)
+    await _register_frontend(hass)
     _register_services(hass, coordinator)
 
     return True
 
 
-def _register_frontend(hass: HomeAssistant) -> None:
+async def _register_frontend(hass: HomeAssistant) -> None:
     """Register Lovelace card JS resources."""
+    from homeassistant.components.http import StaticPathConfig
+
+    static_paths = [
+        StaticPathConfig(
+            url_path=f"/{DOMAIN}/{card}.js",
+            path=str(CARDS_DIR / f"{card}.js"),
+            cache_headers=True,
+        )
+        for card in CARDS
+    ]
+    await hass.http.async_register_static_paths(static_paths)
     for card in CARDS:
-        url = f"/{DOMAIN}/{card}.js"
-        path = str(CARDS_DIR / f"{card}.js")
-        hass.http.register_static_path(url, path, cache_headers=True)
         try:
-            add_extra_js_url(hass, url)
+            add_extra_js_url(hass, f"/{DOMAIN}/{card}.js")
         except KeyError:
             _LOGGER.debug("Frontend not available, skipping extra JS registration")
 
