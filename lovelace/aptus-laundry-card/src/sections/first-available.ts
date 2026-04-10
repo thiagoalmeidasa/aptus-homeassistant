@@ -13,10 +13,14 @@ export class AptusLaundryFirstAvailable extends LitElement {
   @property({ type: Number }) count = 10;
   @state() private _slots: TimeSlot[] = [];
   @state() private _loading = false;
+  private _initialized = false;
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.refresh();
+    if (!this._initialized) {
+      this._initialized = true;
+      this.refresh();
+    }
   }
 
   async refresh(): Promise<void> {
