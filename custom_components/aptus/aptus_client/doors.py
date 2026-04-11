@@ -39,9 +39,10 @@ async def unlock_entrance_door(client: AptusClient, door_id: str) -> UnlockResul
     r = await client.get_ajax(f"Lock/UnlockEntryDoor/{door_id}")
     data = await r.json()
     _LOGGER.debug("UnlockEntryDoor response: %s", data)
+    status_text = data.get("StatusText", "")
     return UnlockResult(
-        success=data.get("HeaderStatusText") == "OK",
-        status_text=data.get("StatusText", ""),
+        success="unlock" in status_text.lower(),
+        status_text=status_text,
     )
 
 

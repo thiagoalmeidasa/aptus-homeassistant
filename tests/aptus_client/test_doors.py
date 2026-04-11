@@ -83,7 +83,7 @@ class TestUnlockEntranceDoor:
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/12227"),
-            payload={"StatusText": "Door is open", "HeaderStatusText": "OK"},
+            payload={"StatusText": "Door is unlocked", "HeaderStatusText": "Status"},
         )
 
         result = await unlock_entrance_door(client, "12227")
@@ -95,18 +95,20 @@ class TestUnlockEntranceDoor:
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/.*"),
-            payload={"StatusText": "Door is open", "HeaderStatusText": "OK"},
+            payload={"StatusText": "Door is unlocked", "HeaderStatusText": "Status"},
         )
 
         result = await unlock_entrance_door(client, "12227")
 
-        assert result.status_text == "Door is open"
+        assert result.status_text == "Door is unlocked"
 
-    async def test_it_should_return_success_true_when_door_opens(self, logged_in_client):
+    async def test_it_should_return_success_true_when_status_text_contains_unlock(
+        self, logged_in_client
+    ):
         client, mock_aio = logged_in_client
         mock_aio.get(
             re.compile(r".*/Lock/UnlockEntryDoor/.*"),
-            payload={"StatusText": "Door is open", "HeaderStatusText": "OK"},
+            payload={"StatusText": "Door is unlocked", "HeaderStatusText": "Status"},
         )
 
         result = await unlock_entrance_door(client, "12227")
