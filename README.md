@@ -52,6 +52,49 @@ Copy `custom_components/aptus/` to your Home Assistant `config/custom_components
 | `calendar.laundry` | Calendar | Laundry bookings as calendar events |
 | `sensor.next_laundry_booking` | Sensor | Next booking datetime with group name |
 
+## Lovelace Cards
+
+### aptus-lock-card
+
+Custom slide-to-unlock card with animated countdown feedback. After unlocking, the card shows a 5-second countdown bar before returning to the locked state.
+
+**Installation**: Copy `dist/aptus-lock-card.js` from `lovelace/aptus-lock-card/` to your HA `www/` directory, then add as a resource in your dashboard.
+
+```yaml
+type: custom:aptus-lock-card
+title: Building Lock
+entities:
+  - lock.entity_example
+unlock_duration: 5  # optional, seconds (default: 5)
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `entities` | list | required | Lock entity IDs |
+| `title` | string | — | Card header title |
+| `unlock_duration` | number | 5 | Countdown duration in seconds |
+
+### Mushroom card alternative
+
+If you prefer standard Mushroom cards, the lock entity auto-relocks after 5 seconds, so a `mushroom-template-card` works out of the box:
+
+```yaml
+type: custom:mushroom-template-card
+entity: lock.entity_example
+icon: >-
+  {{ 'mdi:lock' if is_state(entity, 'locked') else 'mdi:lock-open-check' }}
+icon_color: "{{ 'red' if is_state(entity, 'locked') else 'green' }}"
+primary: Building Door
+secondary: "{{ states(entity) | capitalize }}"
+tap_action:
+  action: perform-action
+  perform_action: lock.unlock
+  target:
+    entity_id: lock.entity_example
+  confirmation:
+    text: Unlock the door?
+```
+
 ## Services
 
 ### `aptus.book_laundry`
