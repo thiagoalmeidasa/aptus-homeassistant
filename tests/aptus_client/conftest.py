@@ -96,8 +96,7 @@ async def mock_aio():
 
 def _make_session(**kwargs) -> aiohttp.ClientSession:
     """Create an aiohttp session that avoids pycares background threads."""
-    connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())
-    return aiohttp.ClientSession(connector=connector, **kwargs)
+    return aiohttp.ClientSession(**kwargs)
 
 
 @pytest_asyncio.fixture
