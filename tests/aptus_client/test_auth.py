@@ -4,6 +4,7 @@ import re
 
 import aiohttp
 import pytest
+from yarl import URL
 
 from custom_components.aptus.aptus_client import AptusClient
 from custom_components.aptus.aptus_client.auth import encrypt_password
@@ -11,6 +12,7 @@ from custom_components.aptus.aptus_client.exceptions import (
     AptusAuthError,
     AptusConnectionError,
     AptusParseError,
+    AptusSessionExpiredError,
 )
 
 from .conftest import (
@@ -295,13 +297,6 @@ class TestCheckResponse:
         with pytest.raises(AptusAuthError, match="error page"):
             await client.get("Account/Error")
 
-    async def test_it_should_raise_auth_error_when_redirected_to_login_page(self, logged_in_client):
-        client, mock_aio = logged_in_client
-        mock_aio.get(re.compile(r".*/Account/Login"), status=200, body="<html>Login</html>")
-
-        with pytest.raises(AptusAuthError, match="login"):
-            await client.get("Account/Login")
-
     async def test_it_should_not_raise_for_normal_responses(self, logged_in_client):
         client, mock_aio = logged_in_client
         mock_aio.get(
@@ -313,3 +308,111 @@ class TestCheckResponse:
         data = await response.json()
 
         assert data["HeaderStatusText"] == "OK"
+
+
+class TestSessionRetryOnExpiry:
+    """Describe AptusClient auto-retry when server-side session expires."""
+
+    @staticmethod
+    def _make_mock_login(client) -> object:
+        """Create a mock login that creates a new session with auth cookie."""
+
+        async def _mock_login():
+            if client._session is None or client._session.closed:
+                client._session = aiohttp.ClientSession(headers=client._headers)
+            _inject_auth_cookie(client._session, TEST_BASE_URL)
+
+        return _mock_login
+
+    async def test_it_should_re_login_and_retry_on_too_many_redirects(
+        self, mock_aio, aiohttp_session
+    ):
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
+        _inject_auth_cookie(aiohttp_session, TEST_BASE_URL)
+
+        # First GET raises TooManyRedirects (session expired, portal redirects to login)
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking$"),
+            exception=aiohttp.TooManyRedirects(
+                aiohttp.RequestInfo(
+                    url=URL(f"{TEST_BASE_URL}/CustomerBooking"),
+                    method="GET",
+                    headers={},
+                    real_url=URL(f"{TEST_BASE_URL}/CustomerBooking"),
+                ),
+                history=(),
+            ),
+        )
+
+        client.login = self._make_mock_login(client)  # type: ignore[assignment]
+
+        # Second GET succeeds after re-login
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking$"),
+            body="<html><body>Bookings</body></html>",
+        )
+
+        response = await client.get("CustomerBooking")
+        assert response.status == 200
+        await client.close()
+
+    async def test_it_should_re_login_and_retry_when_check_response_detects_login(
+        self, mock_aio, aiohttp_session
+    ):
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
+        _inject_auth_cookie(aiohttp_session, TEST_BASE_URL)
+
+        # First GET returns OK but _check_response will detect login redirect
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking$"),
+            body="<html>Login</html>",
+        )
+
+        call_count = 0
+        original_check = client._check_response
+
+        def _check_raising_first_time(response):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise AptusSessionExpiredError("Session expired — redirected to login")
+            original_check(response)
+
+        client._check_response = _check_raising_first_time  # type: ignore[assignment]
+        client.login = self._make_mock_login(client)  # type: ignore[assignment]
+
+        # Second GET succeeds after re-login
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking$"),
+            body="<html><body>Bookings</body></html>",
+        )
+
+        response = await client.get("CustomerBooking")
+        assert response.status == 200
+        assert call_count == 2  # First call raised, second succeeded
+        await client.close()
+
+    async def test_it_should_not_retry_more_than_once(self, mock_aio, aiohttp_session):
+        client = AptusClient(TEST_BASE_URL, "user", "pass", session=aiohttp_session)
+        _inject_auth_cookie(aiohttp_session, TEST_BASE_URL)
+
+        # Both attempts raise TooManyRedirects
+        for _ in range(2):
+            mock_aio.get(
+                re.compile(r".*/CustomerBooking$"),
+                exception=aiohttp.TooManyRedirects(
+                    aiohttp.RequestInfo(
+                        url=URL(f"{TEST_BASE_URL}/CustomerBooking"),
+                        method="GET",
+                        headers={},
+                        real_url=URL(f"{TEST_BASE_URL}/CustomerBooking"),
+                    ),
+                    history=(),
+                ),
+            )
+
+        client.login = self._make_mock_login(client)  # type: ignore[assignment]
+
+        with pytest.raises(AptusAuthError, match="re-login"):
+            await client.get("CustomerBooking")
+        await client.close()

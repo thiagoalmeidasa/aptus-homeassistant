@@ -9,7 +9,12 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from .auth import encrypt_password
-from .exceptions import AptusAuthError, AptusConnectionError, AptusParseError
+from .exceptions import (
+    AptusAuthError,
+    AptusConnectionError,
+    AptusParseError,
+    AptusSessionExpiredError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,7 +115,7 @@ class AptusClient:
             raise AptusAuthError(f"Portal redirected to error page: {response.url}")
         if "/account/login" in url_path:
             _LOGGER.debug("Session expired — redirected to login: %s", response.url)
-            raise AptusAuthError(f"Session expired — redirected to login: {response.url}")
+            raise AptusSessionExpiredError(f"Session expired — redirected to login: {response.url}")
 
     async def _ensure_session(self) -> None:
         """Re-login if the session is closed or missing."""
@@ -120,11 +125,27 @@ class AptusClient:
             await self.login()
 
     async def get(self, path: str, **kwargs) -> aiohttp.ClientResponse:
-        """GET a path relative to the portal base URL."""
+        """
+        GET a path relative to the portal base URL.
+
+        Automatically retries once after re-login if the server-side session
+        has expired (detected via TooManyRedirects or a login-page redirect).
+        """
         await self._ensure_session()
-        _LOGGER.debug("GET %s/%s", self._base_url, path.lstrip("/"))
-        response = await self.session.get(f"{self._base_url}/{path.lstrip('/')}", **kwargs)
-        self._check_response(response)
+        url = f"{self._base_url}/{path.lstrip('/')}"
+        _LOGGER.debug("GET %s", url)
+        try:
+            response = await self.session.get(url, **kwargs)
+            self._check_response(response)
+        except (aiohttp.TooManyRedirects, AptusSessionExpiredError) as exc:
+            _LOGGER.debug("Session expired (%s), re-authenticating and retrying", exc)
+            self._session = None
+            await self.login()
+            try:
+                response = await self.session.get(url, **kwargs)
+                self._check_response(response)
+            except (aiohttp.TooManyRedirects, AptusSessionExpiredError) as retry_exc:
+                raise AptusAuthError(f"Still failing after re-login: {retry_exc}") from retry_exc
         return response
 
     async def get_ajax(self, path: str, **kwargs) -> aiohttp.ClientResponse:
