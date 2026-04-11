@@ -1,11 +1,13 @@
 """BDD tests for Aptus lock entities."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.components.lock import DOMAIN as LOCK_DOMAIN, SERVICE_LOCK, SERVICE_UNLOCK
 from homeassistant.const import ATTR_ENTITY_ID, STATE_LOCKED, STATE_UNLOCKED
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.aptus.aptus_client import doors, laundry
 from custom_components.aptus.aptus_client.models import UnlockResult
@@ -100,6 +102,10 @@ class TestAptusEntranceDoorLock:
                 blocking=True,
             )
 
+            # Fire the auto-relock timer to avoid lingering timers
+            async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+            await hass.async_block_till_done()
+
         mock_unlock.assert_awaited_once()
 
     async def test_it_should_report_unlocked_briefly_after_unlock(self, hass: HomeAssistant):
@@ -129,8 +135,51 @@ class TestAptusEntranceDoorLock:
                 blocking=True,
             )
 
+            state = hass.states.get("lock.entity_example")
+            assert state.state == STATE_UNLOCKED
+
+            # Fire the auto-relock timer to avoid lingering timers
+            async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+            await hass.async_block_till_done()
+
+    async def test_it_should_auto_relock_after_5_seconds(self, hass: HomeAssistant):
+        entry = _make_entry(hass)
+
+        with (
+            patch("custom_components.aptus.AptusClient") as mock_client_cls,
+            patch.object(doors, "list_doors", return_value=MOCK_DOORS),
+            patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
+            patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
+            patch.object(
+                doors,
+                "unlock_entrance_door",
+                return_value=UnlockResult(success=True, status_text="Door is open"),
+            ),
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+
+            await hass.config_entries.async_setup(entry.entry_id)
+            await hass.async_block_till_done()
+
+            await hass.services.async_call(
+                LOCK_DOMAIN,
+                SERVICE_UNLOCK,
+                {ATTR_ENTITY_ID: "lock.entity_example"},
+                blocking=True,
+            )
+
+        # Immediately after unlock, should be unlocked
         state = hass.states.get("lock.entity_example")
         assert state.state == STATE_UNLOCKED
+
+        # Fast-forward the event loop timer (5 seconds)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+        await hass.async_block_till_done()
+
+        # Should auto-relock
+        state = hass.states.get("lock.entity_example")
+        assert state.state == STATE_LOCKED
 
     async def test_it_should_noop_on_lock_command(self, hass: HomeAssistant):
         entry = _make_entry(hass)

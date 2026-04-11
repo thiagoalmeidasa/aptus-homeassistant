@@ -6,8 +6,9 @@ from typing import Any
 
 from homeassistant.components.lock import LockEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .aptus_client import doors
@@ -50,6 +51,7 @@ class AptusEntranceDoorLock(CoordinatorEntity[AptusDataUpdateCoordinator], LockE
         self._attr_unique_id = f"{entry.entry_id}_entrance_{door.id}"
         self._attr_name = door.name
         self._is_locked = True
+        self._relock_unsub: CALLBACK_TYPE | None = None
 
     @property
     def is_locked(self) -> bool:
@@ -64,6 +66,17 @@ class AptusEntranceDoorLock(CoordinatorEntity[AptusDataUpdateCoordinator], LockE
         if result.success:
             self._is_locked = False
             self.async_write_ha_state()
+            # Auto-relock after 5 seconds (door auto-locks physically)
+            if self._relock_unsub:
+                self._relock_unsub()
+            self._relock_unsub = async_call_later(self.hass, 5, self._async_relock)
+
+    @callback
+    def _async_relock(self, _now: Any) -> None:
+        """Reset lock state after the physical door auto-relocks."""
+        self._relock_unsub = None
+        self._is_locked = True
+        self.async_write_ha_state()
 
 
 class AptusApartmentDoorLock(CoordinatorEntity[AptusDataUpdateCoordinator], LockEntity):
