@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { fetchBookings } from "../api";
 import { sharedStyles } from "../styles";
 import type { HomeAssistant, LaundryBooking } from "../types";
+import { confirmDialog } from "../components/confirm-dialog";
 
 @customElement("aptus-laundry-bookings")
 export class AptusLaundryBookings extends LitElement {
@@ -32,9 +33,18 @@ export class AptusLaundryBookings extends LitElement {
     this._loading = false;
   }
 
-  private async _cancel(bookingId: string): Promise<void> {
+  private async _cancel(booking: LaundryBooking): Promise<void> {
+    const detail = `${booking.date} · ${booking.start_time} – ${booking.end_time} · ${booking.group_name}`;
+    const ok = await confirmDialog({
+      title: "Cancel booking?",
+      message: detail,
+      confirmLabel: "Cancel booking",
+      cancelLabel: "Keep",
+      destructive: true,
+    });
+    if (!ok) return;
     await this.hass.callService("aptus", "cancel_laundry", {
-      booking_id: bookingId,
+      booking_id: booking.id,
     });
     this.dispatchEvent(
       new CustomEvent("aptus-booking-changed", { bubbles: true, composed: true })
@@ -57,7 +67,7 @@ export class AptusLaundryBookings extends LitElement {
                     <span class="slot-time">${b.start_time} – ${b.end_time}</span>
                     <span class="slot-group">${b.group_name}</span>
                   </div>
-                  <button class="btn-cancel" @click=${() => this._cancel(b.id)}>
+                  <button class="btn-cancel" @click=${() => this._cancel(b)}>
                     Cancel
                   </button>
                 </div>
