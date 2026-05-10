@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 import re
 from typing import TYPE_CHECKING
 
@@ -174,9 +174,37 @@ def _interval_state(css_classes: list[str]) -> SlotState:
     """Determine slot state from CSS classes."""
     if "bookable" in css_classes:
         return SlotState.AVAILABLE
-    if "owned" in css_classes:
+    if "owned" in css_classes or "own" in css_classes:
         return SlotState.OWNED
     return SlotState.UNAVAILABLE
+
+
+def _extract_week_monday(soup) -> date | None:
+    """
+    Derive the Monday of the week shown by the calendar.
+
+    The portal renders week navigation as
+    <a aria-label="Previous week" href="...&passDate=YYYY-MM-DD">, where
+    passDate is the previous week's Monday. The displayed Monday is +7 days.
+    """
+    for label, offset in (("Previous week", 7), ("Next week", -7)):
+        a = soup.find("a", attrs={"aria-label": label})
+        if not a:
+            continue
+        m = re.search(r"passDate=(\d{4}-\d{2}-\d{2})", a.get("href", ""))
+        if m:
+            return date.fromisoformat(m.group(1)) + timedelta(days=offset)
+    return None
+
+
+def _interval_pass_no(interval, fallback: int) -> int:
+    """Return the real passNo from the inner book button, or the fallback."""
+    btn = interval.select_one("button[onclick*=passNo]")
+    if btn:
+        m = re.search(r"passNo=(\d+)", btn.get("onclick", ""))
+        if m:
+            return int(m.group(1))
+    return fallback
 
 
 def _extract_date_from_column(day_col) -> date | None:
@@ -204,6 +232,32 @@ async def get_weekly_calendar(
     soup = BeautifulSoup(body, "html.parser")
 
     slots: list[TimeSlot] = []
+
+    # Read-only portal format: bare .dayColumn (no data-date), .interval divs
+    # whose state is encoded in the class ("bookable"/"own") and whose date
+    # comes from the week-navigation link's passDate. Bookable slots carry an
+    # inner <button onclick="...passNo=N..."> that we use for the real passNo.
+    week_monday = _extract_week_monday(soup)
+    if week_monday is not None:
+        for col_index, day_col in enumerate(soup.select(".dayColumn")):
+            day_date = week_monday + timedelta(days=col_index)
+            for pos, interval in enumerate(day_col.select(".interval")):
+                text = interval.get_text(strip=True)
+                if not text:
+                    continue
+                start, end = _parse_time_label(text)
+                slots.append(
+                    TimeSlot(
+                        pass_no=_interval_pass_no(interval, pos),
+                        date=day_date,
+                        group_id=group_id,
+                        state=_interval_state(interval.get("class", [])),
+                        _start=start,
+                        _end=end,
+                    )
+                )
+    if slots:
+        return slots
 
     # Format 1: .dayColumn[data-date] with .interval[data-passno]
     for day_col in soup.select(".dayColumn[data-date]"):
