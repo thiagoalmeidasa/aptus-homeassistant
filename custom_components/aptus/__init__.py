@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -63,9 +64,12 @@ async def _async_options_updated(hass: HomeAssistant, entry: AptusConfigEntry) -
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
-    """Register Lovelace card JS resources (non-fatal)."""
+    """Register Lovelace card JS resources with version cache-busting."""
     try:
         from homeassistant.components.http import StaticPathConfig
+
+        manifest_path = Path(__file__).parent / "manifest.json"
+        version = json.loads(manifest_path.read_text()).get("version", "0")
 
         static_paths = [
             StaticPathConfig(
@@ -77,7 +81,7 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         ]
         await hass.http.async_register_static_paths(static_paths)
         for card in CARDS:
-            add_extra_js_url(hass, f"/{DOMAIN}/{card}.js")
+            add_extra_js_url(hass, f"/{DOMAIN}/{card}.js?v={version}")
     except (AttributeError, KeyError, TypeError):
         _LOGGER.debug("Frontend not available, skipping card registration")
 

@@ -2,6 +2,7 @@ export interface AptusLockCardConfig {
   type: string;
   entities: string[];
   title?: string;
+  unlock_duration?: number;
 }
 
 export interface HassEntity {
