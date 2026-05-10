@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { fetchGroups, fetchWeeklyCalendar } from "../api";
 import { sharedStyles } from "../styles";
 import type { HomeAssistant, LaundryGroup, TimeSlot } from "../types";
+import { confirmDialog } from "../components/confirm-dialog";
 
 @customElement("aptus-laundry-calendar")
 export class AptusLaundryCalendar extends LitElement {
@@ -181,6 +182,14 @@ export class AptusLaundryCalendar extends LitElement {
   }
 
   private async _book(slot: TimeSlot): Promise<void> {
+    const detail = `${slot.date} · ${slot.start_time} – ${slot.end_time}` +
+      (slot.group_name ? ` · ${slot.group_name}` : "");
+    const ok = await confirmDialog({
+      title: "Book laundry slot?",
+      message: detail,
+      confirmLabel: "Book",
+    });
+    if (!ok) return;
     await this.hass.callService("aptus", "book_laundry", {
       pass_no: slot.pass_no,
       pass_date: slot.date,
