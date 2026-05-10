@@ -69,6 +69,86 @@ WEEKLY_CALENDAR_HTML = """
 </body></html>
 """
 
+# Mirrors the live ikanobostad portal markup as of 2026-05-10: a read-only
+# week grid with no per-column date attribute. The week's Monday is derived
+# from the "Previous week" nav link's passDate (= prev Monday) plus 7 days.
+# Bookable slots carry an `interval bookable` class and an inner button whose
+# onclick contains the real passNo; bare `interval` divs with text mean
+# "past or already booked by someone else"; `interval own` is the user's
+# booking; an empty `interval` div is a layout placeholder to be skipped.
+WEEKLY_CALENDAR_READ_ONLY_HTML = """
+<html><body>
+<table><tr>
+  <td><a class="focusable" aria-label="Previous week"
+         href="/Aptusportal/CustomerBooking/BookingCalendar?bookingGroupId=83&passDate=2026-04-27"></a></td>
+  <td>Week 19</td>
+  <td><a class="focusable" aria-label="Next week"
+         href="/Aptusportal/CustomerBooking/BookingCalendar?bookingGroupId=83&passDate=2026-05-11"></a></td>
+</tr></table>
+<div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">4</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">5</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">6</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">7</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">8</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">9</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval"><div>19:00 - 22:00</div></div>
+  </div>
+  <div class="dayColumn">
+    <div class="dayOfMonth">10</div>
+    <div class="interval"><div>07:00 - 10:00</div></div>
+    <div class="interval"><div>10:00 - 13:00</div></div>
+    <div class="interval own"><div>13:00 - 16:00</div></div>
+    <div class="interval"><div>16:00 - 19:00</div></div>
+    <div class="interval bookable">
+      <div>19:00 - 22:00</div>
+      <button class="bookButton" onclick="DoBooking('Book?passNo=42&passDate=2026-05-10&bookingGroupId=83')"></button>
+    </div>
+  </div>
+</div>
+</body></html>
+"""
+
 BOOKINGS_HTML = """
 <html><body>
 <div class="bookingCard" data-bookingid="42">
@@ -307,6 +387,101 @@ class TestGetWeeklyCalendar:
 
         has_call = any("BookingCalendar" in str(url) for (_, url) in mock_aio.requests)
         assert has_call
+
+
+class TestGetWeeklyCalendarReadOnlyPortal:
+    """Describe get_weekly_calendar() against the live ikanobostad markup."""
+
+    async def test_it_should_parse_seven_days_starting_from_monday_derived_from_prev_week_link(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        unique_dates = sorted({s.date for s in slots})
+        assert unique_dates == [
+            date(2026, 5, 4),
+            date(2026, 5, 5),
+            date(2026, 5, 6),
+            date(2026, 5, 7),
+            date(2026, 5, 8),
+            date(2026, 5, 9),
+            date(2026, 5, 10),
+        ]
+
+    async def test_it_should_skip_empty_interval_placeholders(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        # 7 days * 5 intervals - 1 empty placeholder on Wed = 34
+        assert len(slots) == 34
+
+    async def test_it_should_mark_bookable_intervals_as_available_and_extract_pass_no_from_button(
+        self, logged_in_client
+    ):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        bookable = [s for s in slots if s.state == SlotState.AVAILABLE]
+        assert len(bookable) == 1
+        assert bookable[0].date == date(2026, 5, 10)
+        assert bookable[0].pass_no == 42
+
+    async def test_it_should_mark_own_class_intervals_as_owned(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        owned = [s for s in slots if s.state == SlotState.OWNED]
+        assert len(owned) == 1
+        assert owned[0].date == date(2026, 5, 10)
+        assert owned[0].start_time.hour == 13
+
+    async def test_it_should_mark_bare_interval_with_text_as_unavailable(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        unavailable = [s for s in slots if s.state == SlotState.UNAVAILABLE]
+        assert len(unavailable) == 32
+
+    async def test_it_should_extract_start_and_end_time_from_text_label(self, logged_in_client):
+        client, mock_aio = logged_in_client
+        mock_aio.get(
+            re.compile(r".*/CustomerBooking/BookingCalendar.*"),
+            body=WEEKLY_CALENDAR_READ_ONLY_HTML,
+        )
+
+        slots = await get_weekly_calendar(client, group_id="83")
+
+        monday_first = next(s for s in slots if s.date == date(2026, 5, 4))
+        assert monday_first.start_time.hour == 7
+        assert monday_first.start_time.minute == 0
+        assert monday_first.end_time.hour == 10
+        assert monday_first.end_time.minute == 0
 
 
 class TestListBookings:
