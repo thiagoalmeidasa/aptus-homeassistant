@@ -1,0 +1,207 @@
+blueprint:
+  name: Aptus laundry calendar sync
+  description: >
+    One-way sync of upcoming events from a source calendar (e.g.
+    `calendar.laundry` from the Aptus integration) to a destination
+    calendar (e.g. Google Calendar). Reconciles on HA start, on a
+    schedule, on source state change, and on `aptus_event`
+    (booking_created / booking_cancelled) so portal-side changes
+    propagate without waiting for the next poll.
+
+    Dedup: each destination event gets `[sync_uid:<source.uid>]`
+    embedded in its description, so the blueprint can tell which
+    events it owns and skip re-creating them.
+
+    Additive-only: HA exposes no `calendar.delete_event` service, so
+    cancellations cannot be mirrored automatically. When a previously
+    synced source event disappears, the blueprint fires a persistent
+    notification so you can remove the stale destination event by hand
+    (toggle "Notify on cancellation" off if you'd rather it stay silent).
+  domain: automation
+  source_url: https://github.com/thiagoalmeidasa/aptus-homeassistant/blob/main/blueprints/automation/aptus/calendar_sync.yaml
+  input:
+    source_calendar:
+      name: Source calendar
+      description: >
+        Calendar to read events from (e.g. `calendar.laundry`). Events
+        must expose a stable `uid` for dedup to work — Aptus calendar
+        events have done so since the integration's UID PR.
+      selector:
+        entity:
+          domain: calendar
+    destination_calendar:
+      name: Destination calendar
+      description: >
+        Calendar to write events to (e.g. your Google Calendar). Must
+        support `calendar.create_event`.
+      selector:
+        entity:
+          domain: calendar
+    lookahead_days:
+      name: Look-ahead window (days)
+      description: >
+        How far into the future to reconcile. Bookings further out are
+        ignored and will be picked up once they fall inside the window.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 90
+          step: 1
+          unit_of_measurement: days
+          mode: slider
+    sync_interval:
+      name: Sync interval
+      description: >
+        How often to reconcile in addition to the event-driven triggers.
+        Acts as a safety net for missed bus events.
+      default: "/10"
+      selector:
+        select:
+          options:
+            - label: Every 5 minutes
+              value: "/5"
+            - label: Every 10 minutes
+              value: "/10"
+            - label: Every 15 minutes
+              value: "/15"
+            - label: Every 30 minutes
+              value: "/30"
+    use_ha_timezone:
+      name: Convert event times to Home Assistant's timezone
+      description: >
+        When on, source event times are converted to your HA timezone
+        before being created on the destination. Leave on unless source
+        and destination intentionally use different timezones.
+      default: true
+      selector:
+        boolean:
+    notify_on_cancellation:
+      name: Notify on cancellation
+      description: >
+        Fire a persistent notification when a previously synced source
+        event disappears. The destination event must be removed
+        manually (HA has no generic delete-event service).
+      default: true
+      selector:
+        boolean:
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: homeassistant
+    event: start
+    id: ha_start
+  - platform: time_pattern
+    minutes: !input sync_interval
+    id: scheduled
+  - platform: state
+    entity_id: !input source_calendar
+    id: source_state_change
+  - platform: event
+    event_type: aptus_event
+    event_data:
+      type: booking_created
+    id: aptus_booking_created
+  - platform: event
+    event_type: aptus_event
+    event_data:
+      type: booking_cancelled
+    id: aptus_booking_cancelled
+
+variables:
+  source_cal: !input source_calendar
+  dest_cal: !input destination_calendar
+  lookahead: !input lookahead_days
+  use_tz: !input use_ha_timezone
+  notify_cancel: !input notify_on_cancellation
+
+action:
+  - service: calendar.get_events
+    target:
+      entity_id: !input source_calendar
+    data:
+      start_date_time: "{{ now().isoformat() }}"
+      end_date_time: "{{ (now() + timedelta(days=lookahead | int)).isoformat() }}"
+    response_variable: source_resp
+
+  - service: calendar.get_events
+    target:
+      entity_id: !input destination_calendar
+    data:
+      start_date_time: "{{ now().isoformat() }}"
+      end_date_time: "{{ (now() + timedelta(days=lookahead | int)).isoformat() }}"
+    response_variable: dest_resp
+
+  - variables:
+      source_events: "{{ source_resp[source_cal].events | default([], true) }}"
+      dest_events: "{{ dest_resp[dest_cal].events | default([], true) }}"
+      dest_sync_uids: >-
+        {{ dest_events
+           | map(attribute='description')
+           | select('string')
+           | map('regex_findall', '\\[sync_uid:([^\\]]+)\\]')
+           | sum(start=[])
+           | list }}
+      source_uids: >-
+        {{ source_events
+           | map(attribute='uid')
+           | reject('none')
+           | list }}
+      to_create: >-
+        {%- set ns = namespace(items=[]) -%}
+        {%- for s in source_events -%}
+          {%- if s.uid and s.uid not in dest_sync_uids
+                 and s.start.dateTime is defined and s.end.dateTime is defined -%}
+            {%- set _ = ns.items.append(s) -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ ns.items }}
+      cancelled_uids: >-
+        {{ dest_sync_uids
+           | reject('in', source_uids)
+           | list }}
+
+  - repeat:
+      for_each: "{{ to_create }}"
+      sequence:
+        - service: calendar.create_event
+          target:
+            entity_id: !input destination_calendar
+          data:
+            summary: "{{ repeat.item.summary }}"
+            description: >-
+              [sync_uid:{{ repeat.item.uid }}]
+              {{ repeat.item.description | default('', true) }}
+            start_date_time: >-
+              {% if use_tz -%}
+                {{ (repeat.item.start.dateTime | as_datetime | as_local).isoformat() }}
+              {%- else -%}
+                {{ repeat.item.start.dateTime }}
+              {%- endif %}
+            end_date_time: >-
+              {% if use_tz -%}
+                {{ (repeat.item.end.dateTime | as_datetime | as_local).isoformat() }}
+              {%- else -%}
+                {{ repeat.item.end.dateTime }}
+              {%- endif %}
+
+  - if:
+      - condition: template
+        value_template: "{{ (cancelled_uids | length) > 0 and notify_cancel }}"
+    then:
+      - service: persistent_notification.create
+        data:
+          notification_id: "calendar_sync_{{ source_cal | replace('.', '_') }}_cancelled"
+          title: Calendar sync — cancellations need manual cleanup
+          message: >-
+            The following events were removed from `{{ source_cal }}` after
+            being synced to `{{ dest_cal }}`. HA can't delete events via
+            service call, so remove them from the destination calendar
+            manually.
+
+            Cancelled sync UIDs:
+            {% for uid in cancelled_uids %}
+            - `{{ uid }}`
+            {% endfor %}
