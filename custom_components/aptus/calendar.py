@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.config_entries import ConfigEntry
@@ -13,6 +14,8 @@ from homeassistant.util import dt as dt_util
 
 from .aptus_client.models import LaundryBooking
 from .coordinator import AptusDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -25,6 +28,18 @@ async def async_setup_entry(
     if not coordinator.laundry_enabled:
         return
     async_add_entities([AptusLaundryCalendar(coordinator, entry)])
+
+
+def _ensure_tz(value: datetime) -> datetime:
+    """
+    Attach DEFAULT_TIME_ZONE only if the datetime is naive.
+
+    Prevents the previous bug where `.replace(tzinfo=DEFAULT_TIME_ZONE)`
+    silently re-zoned datetimes that already had explicit tzinfo.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    return value
 
 
 class AptusLaundryCalendar(CoordinatorEntity[AptusDataUpdateCoordinator], CalendarEntity):
@@ -43,28 +58,49 @@ class AptusLaundryCalendar(CoordinatorEntity[AptusDataUpdateCoordinator], Calend
 
     @property
     def event(self) -> CalendarEvent | None:
-        """Return the next upcoming event."""
+        """
+        Return the next upcoming event, or None if nothing is upcoming.
+
+        Past bookings no longer linger on the entity. The previous "fall
+        back to most recent past booking" made `state == off` ambiguous
+        and surfaced stale events.
+        """
         bookings: list[LaundryBooking] = self.coordinator.data.get("bookings", [])
         if not bookings:
             return None
 
         now = dt_util.now()
-        tz = dt_util.DEFAULT_TIME_ZONE
-        # Find next future booking, or the most recent one
-        future = [b for b in bookings if b.end.replace(tzinfo=tz) > now]
-        if future:
-            booking = min(future, key=lambda b: b.start)
-        else:
-            booking = max(bookings, key=lambda b: b.start)
+        future: list[LaundryBooking] = []
+        for booking in bookings:
+            try:
+                if _ensure_tz(booking.end) > now:
+                    future.append(booking)
+            except ValueError as exc:
+                _LOGGER.warning(
+                    "Skipping laundry booking %s with unresolvable times: %s",
+                    booking.id,
+                    exc,
+                )
 
-        return self._booking_to_event(booking)
+        if not future:
+            return None
+
+        upcoming = min(future, key=lambda b: b.start)
+        try:
+            return self._booking_to_event(upcoming)
+        except ValueError as exc:
+            _LOGGER.warning(
+                "Skipping laundry booking %s with unresolvable times: %s",
+                upcoming.id,
+                exc,
+            )
+            return None
 
     def _booking_to_event(self, booking: LaundryBooking) -> CalendarEvent:
         """Convert a booking to a HA CalendarEvent with timezone."""
-        tz = dt_util.DEFAULT_TIME_ZONE
         return CalendarEvent(
-            start=booking.start.replace(tzinfo=tz),
-            end=booking.end.replace(tzinfo=tz),
+            start=_ensure_tz(booking.start),
+            end=_ensure_tz(booking.end),
             summary=(
                 f"Laundry {booking.group_name} "
                 f"{booking.start_time:%H:%M}-{booking.end_time:%H:%M}"
@@ -81,10 +117,18 @@ class AptusLaundryCalendar(CoordinatorEntity[AptusDataUpdateCoordinator], Calend
     ) -> list[CalendarEvent]:
         """Return all events in a date range."""
         bookings: list[LaundryBooking] = self.coordinator.data.get("bookings", [])
-        events = []
+        events: list[CalendarEvent] = []
         for booking in bookings:
-            start = booking.start.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
-            end = booking.end.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            try:
+                start = _ensure_tz(booking.start)
+                end = _ensure_tz(booking.end)
+            except ValueError as exc:
+                _LOGGER.warning(
+                    "Skipping laundry booking %s with unresolvable times: %s",
+                    booking.id,
+                    exc,
+                )
+                continue
             if start >= start_date and end <= end_date:
                 events.append(self._booking_to_event(booking))
         return events

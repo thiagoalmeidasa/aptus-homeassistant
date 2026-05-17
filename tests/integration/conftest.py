@@ -31,6 +31,7 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.aptus.aptus_client.models import (
+    _TIME_SLOT_MAP,
     Door,
     DoorStatus,
     DoorType,
@@ -58,8 +59,19 @@ MOCK_LAUNDRY_GROUPS = [
     LaundryGroup(id="186", name="Grupp 2"),
 ]
 
+# The mock booking's pass_no is the source of truth — its start/end times come
+# from _TIME_SLOT_MAP so assertions don't hard-code "13:30-16:00" anywhere.
+MOCK_BOOKING_PASS_NO = 5
+MOCK_BOOKING_START_TIME, MOCK_BOOKING_END_TIME = _TIME_SLOT_MAP[MOCK_BOOKING_PASS_NO]
+MOCK_BOOKING_TIME_RANGE = f"{MOCK_BOOKING_START_TIME:%H:%M}-{MOCK_BOOKING_END_TIME:%H:%M}"
+
 MOCK_BOOKINGS = [
-    LaundryBooking(id="42", group_name="Grupp 1", date=date(2026, 4, 10), pass_no=5),
+    LaundryBooking(
+        id="42",
+        group_name="Grupp 1",
+        date=date(2026, 4, 10),
+        pass_no=MOCK_BOOKING_PASS_NO,
+    ),
 ]
 
 MOCK_AVAILABLE_SLOTS = [

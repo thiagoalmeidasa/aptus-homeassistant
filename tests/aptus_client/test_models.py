@@ -2,6 +2,8 @@
 
 from datetime import date, datetime, time
 
+import pytest
+
 from custom_components.aptus.aptus_client.models import (
     Door,
     DoorStatus,
@@ -168,3 +170,34 @@ class TestLaundryBooking:
 
         assert booking.start == datetime(2026, 4, 10, 13, 30)
         assert booking.end == datetime(2026, 4, 10, 16, 0)
+
+    def test_it_should_raise_when_pass_no_is_unmapped_and_no_overrides_set(self):
+        """Unknown pass_no without overrides must raise, not silently return time(0, 0)."""
+        # The silent fallback used to produce 00:00-00:00 "ghost" events; the explicit
+        # error lets the caller skip + warn instead of emitting garbage.
+        booking = LaundryBooking(
+            id="bogus",
+            group_name="Grupp 1",
+            date=date(2026, 4, 10),
+            pass_no=99,
+        )
+
+        with pytest.raises(ValueError, match="pass_no"):
+            _ = booking.start_time
+        with pytest.raises(ValueError, match="pass_no"):
+            _ = booking.end_time
+
+    def test_it_should_use_explicit_start_end_overrides_when_set(self):
+        """HTML-derived overrides win over the pass_no map, even for unmapped pass_no values."""
+        # Supports portals with custom slot counts where pass_no is outside 0-9.
+        booking = LaundryBooking(
+            id="custom",
+            group_name="Grupp 1",
+            date=date(2026, 4, 10),
+            pass_no=42,
+            _start=time(7, 0),
+            _end=time(10, 0),
+        )
+
+        assert booking.start_time == time(7, 0)
+        assert booking.end_time == time(10, 0)
