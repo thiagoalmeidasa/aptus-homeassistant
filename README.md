@@ -138,9 +138,9 @@ One-way mirror of upcoming events from a source HA calendar to a destination cal
 
 [![Open your Home Assistant instance and show the blueprint import dialog with this blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fthiagoalmeidasa%2Faptus-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Faptus%2Fcalendar_sync.yaml)
 
-Triggers on HA start, on a configurable interval, on source-calendar state changes, and on `aptus_event` (instant for Aptus bookings). Dedups by embedding `[sync_uid:<uid>]` in the destination event's description.
+Triggers on HA start, on a configurable interval, on source-calendar state changes, and on `aptus_event` (instant for Aptus bookings). Dedups by embedding `[sync_uid:<uid>]` in the destination event's description. Cancellations delete the destination copy and recreate it with a `[CANCELLED]` prefix.
 
-**Additive-only.** HA exposes no `calendar.delete_event` service, so cancellations can't be mirrored. The blueprint fires a persistent notification when a synced source event disappears so you can remove the stale destination event manually.
+**Prerequisite:** Install [`hacs_calendar_utils`](https://github.com/swehog/hacs_calendar_utils) — HA core's `calendar.get_events` strips `uid` from the response and exposes no `delete_event` service. `calendar_utils.get_events` and `calendar_utils.delete_event_by_uid` plug both gaps. The destination calendar must advertise `DELETE_EVENT` in its `supported_features` (Google Calendar does).
 
 Source: [`blueprints/automation/aptus/calendar_sync.yaml`](blueprints/automation/aptus/calendar_sync.yaml).
 
