@@ -48,3 +48,14 @@ export async function fetchWeeklyCalendar(
   }
   return hass.connection.sendMessagePromise<TimeSlot[]>(msg);
 }
+
+export async function subscribeUpdates(
+  hass: HomeAssistant,
+  entryId: string,
+  callback: () => void,
+): Promise<() => void> {
+  return hass.connection.subscribeMessage(callback, {
+    type: "aptus/subscribe",
+    entry_id: entryId,
+  });
+}

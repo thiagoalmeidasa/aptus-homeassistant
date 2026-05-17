@@ -7,7 +7,7 @@ import type {
   SectionConfig,
 } from "./types";
 import { DEFAULT_SECTIONS } from "./types";
-import { fetchEntries } from "./api";
+import { fetchEntries, subscribeUpdates } from "./api";
 import "./sections/my-bookings";
 import "./sections/first-available";
 import "./sections/calendar";
@@ -38,10 +38,14 @@ export class AptusLaundryCard extends LitElement {
   @state() private _selectedEntryId: string | null = null;
   private _sections: SectionConfig[] = DEFAULT_SECTIONS;
   private _entriesLoaded = false;
+  private _unsub?: () => void;
 
   setConfig(config: AptusLaundryCardConfig): void {
     this._config = config;
     this._sections = config.sections ?? DEFAULT_SECTIONS;
+    if (this.isConnected) {
+      this._loadEntries();
+    }
   }
 
   getCardSize(): number {
@@ -66,16 +70,21 @@ export class AptusLaundryCard extends LitElement {
 
   disconnectedCallback(): void {
     this.removeEventListener("aptus-booking-changed", this._onBookingChanged);
+    this._unsubscribe();
     super.disconnectedCallback();
   }
 
   private async _loadEntries(): Promise<void> {
     if (this._entriesLoaded) return;
+    // connectedCallback can fire before setConfig when a late-loading bundle
+    // upgrades an element already in the DOM. Re-run from setConfig instead.
+    if (!this._config) return;
 
     // If entry_id is set in YAML config, use it directly
     if (this._config.entry_id) {
       this._selectedEntryId = this._config.entry_id;
       this._entriesLoaded = true;
+      this._ensureSubscribed();
       return;
     }
 
@@ -83,6 +92,7 @@ export class AptusLaundryCard extends LitElement {
       this._entries = await fetchEntries(this.hass);
       if (this._entries.length === 1) {
         this._selectedEntryId = this._entries[0].entry_id;
+        this._ensureSubscribed();
       }
       this._entriesLoaded = true;
     } catch {
@@ -90,8 +100,31 @@ export class AptusLaundryCard extends LitElement {
     }
   }
 
+  private async _ensureSubscribed(): Promise<void> {
+    if (this._unsub || !this._selectedEntryId || !this.hass) return;
+    try {
+      this._unsub = await subscribeUpdates(
+        this.hass,
+        this._selectedEntryId,
+        this._onBookingChanged,
+      );
+    } catch {
+      // Older integration versions may not expose aptus/subscribe yet.
+      // Per-render fetches keep working; just no push invalidation.
+    }
+  }
+
+  private _unsubscribe(): void {
+    this._unsub?.();
+    this._unsub = undefined;
+  }
+
   private _onEntrySelect(e: Event): void {
-    this._selectedEntryId = (e.target as HTMLSelectElement).value;
+    const value = (e.target as HTMLSelectElement).value;
+    if (value === this._selectedEntryId) return;
+    this._unsubscribe();
+    this._selectedEntryId = value;
+    this._ensureSubscribed();
   }
 
   private _renderSection(section: SectionConfig) {

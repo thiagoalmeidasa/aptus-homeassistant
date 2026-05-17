@@ -60,6 +60,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_laundry_first_available)
     websocket_api.async_register_command(hass, ws_laundry_weekly_calendar)
     websocket_api.async_register_command(hass, ws_laundry_bookings)
+    websocket_api.async_register_command(hass, ws_subscribe)
 
 
 @websocket_api.websocket_command({"type": "aptus/entries"})
@@ -185,3 +186,32 @@ async def ws_laundry_bookings(
     except (AptusAuthError, AptusConnectionError) as exc:
         _LOGGER.debug("Failed to fetch bookings: %s", exc)
         connection.send_result(msg["id"], [])
+
+
+@callback
+@websocket_api.websocket_command(
+    {
+        "type": "aptus/subscribe",
+        vol.Required("entry_id"): str,
+    }
+)
+def ws_subscribe(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+) -> None:
+    """
+    Subscribe to coordinator refresh signals for a config entry.
+
+    Signal-only channel: every coordinator refresh emits `{"updated": True}`.
+    Subscribers re-fetch via the existing `aptus/laundry/*` commands.
+    """
+    coordinator = _get_coordinator(hass, msg["entry_id"])
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Aptus entry not found")
+        return
+
+    @callback
+    def _on_update() -> None:
+        connection.send_message(websocket_api.event_message(msg["id"], {"updated": True}))
+
+    connection.subscriptions[msg["id"]] = coordinator.async_add_listener(_on_update)
+    connection.send_result(msg["id"])
