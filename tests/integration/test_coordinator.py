@@ -13,7 +13,13 @@ from custom_components.aptus.aptus_client.exceptions import (
 )
 from custom_components.aptus.coordinator import AptusDataUpdateCoordinator
 
-from .conftest import MOCK_BOOKINGS, MOCK_DOOR_STATUS, MOCK_DOORS, MockEntryBuilder
+from .conftest import (
+    MOCK_BOOKING_PASS_NO,
+    MOCK_BOOKINGS,
+    MOCK_DOOR_STATUS,
+    MOCK_DOORS,
+    MockEntryBuilder,
+)
 
 
 class TestAptusCoordinator:
@@ -231,6 +237,8 @@ class TestCoordinatorEventEmission:
     async def test_it_should_fire_booking_cancelled_event_when_booking_disappears(
         self, hass: HomeAssistant, mock_config_entry
     ):
+        """Cancelled event carries the same metadata as the created event."""
+        # Symmetric payload so downstream automations don't need prior bookkeeping.
         mock_client = AsyncMock()
         received: list = []
         hass.bus.async_listen("aptus_event", lambda e: received.append(e))
@@ -250,7 +258,39 @@ class TestCoordinatorEventEmission:
 
         cancelled = [e for e in received if e.data.get("type") == "booking_cancelled"]
         assert len(cancelled) == 1
+        # Full payload (parity with booking_created) — see PR 3 audit fix.
         assert cancelled[0].data["booking_id"] == "42"
+        assert cancelled[0].data["group_name"] == "Grupp 1"
+        assert cancelled[0].data["date"] == "2026-04-10"
+        assert cancelled[0].data["pass_no"] == MOCK_BOOKING_PASS_NO
+
+    async def test_it_should_not_fire_events_when_same_bookings_persist_across_refreshes(
+        self, hass: HomeAssistant, mock_config_entry
+    ):
+        """Unchanged bookings across N refreshes don't look like new bookings each time."""
+        # Verifies the diff is idempotent (booking.id reuse / collision audit).
+        mock_client = AsyncMock()
+        received: list = []
+        hass.bus.async_listen("aptus_event", lambda e: received.append(e))
+
+        with (
+            patch.object(doors, "list_doors", return_value=MOCK_DOORS),
+            patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
+            patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
+        ):
+            coordinator = AptusDataUpdateCoordinator(hass, mock_client, mock_config_entry)
+            await coordinator.async_refresh()  # baseline
+            await hass.async_block_till_done()
+            received.clear()
+            # Two more refreshes with identical data
+            await coordinator.async_refresh()
+            await coordinator.async_refresh()
+            await hass.async_block_till_done()
+
+        assert received == [], (
+            "no events should fire when the booking set hasn't changed; "
+            f"got {[e.data for e in received]}"
+        )
 
     async def test_it_should_fire_aptus_event_with_type_field_and_full_payload(
         self, hass: HomeAssistant, mock_config_entry
@@ -289,26 +329,34 @@ class TestCoordinatorEventEmission:
         assert event.data["date"] == "2026-04-10"
 
     async def test_it_should_not_fire_cancellation_when_laundry_disabled(self, hass: HomeAssistant):
-        """Toggling laundry off must not look like a mass cancellation."""
+        """
+        Toggling laundry off mid-session must not look like a mass cancellation.
+
+        The toggle is flipped via the normal config-entry options API so the
+        test mirrors what the HA UI does — no direct attribute mutation on the
+        coordinator (which would bypass HA's update flow and mask integration
+        bugs around options reloading).
+        """
         mock_client = AsyncMock()
         received: list = []
         hass.bus.async_listen("aptus_event", lambda e: received.append(e))
 
-        enabled_entry = MockEntryBuilder().build()
+        entry = MockEntryBuilder().build()
+        entry.add_to_hass(hass)
         with (
             patch.object(doors, "list_doors", return_value=MOCK_DOORS),
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
             patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
         ):
-            coordinator = AptusDataUpdateCoordinator(hass, mock_client, enabled_entry)
+            coordinator = AptusDataUpdateCoordinator(hass, mock_client, entry)
             await coordinator.async_refresh()  # baseline with 1 booking
             await hass.async_block_till_done()
             received.clear()
 
-        # Same coordinator, but now laundry is disabled (entry rebuilt off-test
-        # to flip the toggle deterministically without options-update plumbing).
-        disabled_entry = MockEntryBuilder().without_laundry().build()
-        coordinator.entry = disabled_entry
+        # Flip the laundry toggle off via HA's config-entry options API.
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, "enable_laundry": False}
+        )
         with (
             patch.object(doors, "list_doors", return_value=MOCK_DOORS),
             patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),

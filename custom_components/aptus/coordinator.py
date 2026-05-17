@@ -49,7 +49,10 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # None until the first successful refresh observes a booking snapshot.
         # The first snapshot is the baseline — emitting "created" events for
         # every booking on HA startup would flood any listening automation.
-        self._previous_booking_ids: set[str] | None = None
+        # Stores the full LaundryBooking so the cancellation payload can carry
+        # group_name / date / pass_no even after the booking has disappeared
+        # from the source.
+        self._previous_bookings: dict[str, LaundryBooking] | None = None
 
     async def get_category_id(self) -> str:
         """Get the laundry category ID, caching on first call."""
@@ -91,7 +94,7 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         else:
             # Drop baseline so re-enabling laundry doesn't falsely emit
             # cancellation events for whatever was in the previous snapshot.
-            self._previous_booking_ids = None
+            self._previous_bookings = None
 
         return {
             "doors": door_list,
@@ -108,19 +111,22 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         (made by another household member directly on the Aptus website).
         Aptus has no in-place modify operation — only create and cancel — so
         a created/cancelled pair is sufficient to mirror the booking state.
-        """
-        current_ids = {b.id for b in bookings}
 
-        if self._previous_booking_ids is None:
-            self._previous_booking_ids = current_ids
+        Cancellation payload includes the same fields as creation (group_name,
+        date, pass_no) by looking the booking up in the previous snapshot, so
+        downstream automations don't need separate bookkeeping.
+        """
+        current = {b.id: b for b in bookings}
+
+        if self._previous_bookings is None:
+            self._previous_bookings = current
             return
 
-        created_ids = current_ids - self._previous_booking_ids
-        cancelled_ids = self._previous_booking_ids - current_ids
+        created_ids = set(current) - set(self._previous_bookings)
+        cancelled_ids = set(self._previous_bookings) - set(current)
 
-        bookings_by_id = {b.id: b for b in bookings}
         for booking_id in created_ids:
-            b = bookings_by_id[booking_id]
+            b = current[booking_id]
             self.hass.bus.async_fire(
                 EVENT_APTUS,
                 {
@@ -132,9 +138,16 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 },
             )
         for booking_id in cancelled_ids:
+            b = self._previous_bookings[booking_id]
             self.hass.bus.async_fire(
                 EVENT_APTUS,
-                {"type": EVENT_TYPE_BOOKING_CANCELLED, "booking_id": booking_id},
+                {
+                    "type": EVENT_TYPE_BOOKING_CANCELLED,
+                    "booking_id": b.id,
+                    "group_name": b.group_name,
+                    "date": b.date.isoformat(),
+                    "pass_no": b.pass_no,
+                },
             )
 
-        self._previous_booking_ids = current_ids
+        self._previous_bookings = current

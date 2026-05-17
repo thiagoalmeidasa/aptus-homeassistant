@@ -63,6 +63,24 @@ class LaundryGroup:
     name: str
 
 
+def _resolve_pass_time(pass_no: int, override: time | None, index: int) -> time:
+    """
+    Resolve a slot's start (index=0) or end (index=1) time.
+
+    Prefers an explicit override (from HTML scraping); falls back to
+    `_TIME_SLOT_MAP[pass_no]`. Raises `ValueError` for unmapped pass_nos
+    without overrides instead of silently returning `time(0, 0)` — that
+    silent fallback used to surface as 00:00-00:00 "ghost" events.
+    """
+    if override is not None:
+        return override
+    if pass_no not in _TIME_SLOT_MAP:
+        raise ValueError(
+            f"Unknown pass_no={pass_no}; not in _TIME_SLOT_MAP and no override set",
+        )
+    return _TIME_SLOT_MAP[pass_no][index]
+
+
 @dataclass
 class TimeSlot:
     pass_no: int
@@ -75,15 +93,11 @@ class TimeSlot:
 
     @property
     def start_time(self) -> time:
-        if self._start:
-            return self._start
-        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[0]
+        return _resolve_pass_time(self.pass_no, self._start, 0)
 
     @property
     def end_time(self) -> time:
-        if self._end:
-            return self._end
-        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[1]
+        return _resolve_pass_time(self.pass_no, self._end, 1)
 
     @property
     def is_bookable(self) -> bool:
@@ -101,15 +115,11 @@ class LaundryBooking:
 
     @property
     def start_time(self) -> time:
-        if self._start:
-            return self._start
-        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[0]
+        return _resolve_pass_time(self.pass_no, self._start, 0)
 
     @property
     def end_time(self) -> time:
-        if self._end:
-            return self._end
-        return _TIME_SLOT_MAP.get(self.pass_no, (time(0), time(0)))[1]
+        return _resolve_pass_time(self.pass_no, self._end, 1)
 
     @property
     def start(self) -> datetime:
