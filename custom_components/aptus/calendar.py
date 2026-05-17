@@ -65,7 +65,12 @@ class AptusLaundryCalendar(CoordinatorEntity[AptusDataUpdateCoordinator], Calend
         return CalendarEvent(
             start=booking.start.replace(tzinfo=tz),
             end=booking.end.replace(tzinfo=tz),
-            summary=f"Laundry - {booking.group_name}",
+            summary=(
+                f"Laundry {booking.group_name} "
+                f"{booking.start_time:%H:%M}-{booking.end_time:%H:%M}"
+            ),
+            description=(f"Aptus laundry booking · {booking.group_name} · slot {booking.pass_no}"),
+            uid=booking.id,
         )
 
     async def async_get_events(
