@@ -111,6 +111,25 @@ tap_action:
 |-------|------|-------------|
 | `booking_id` | string | ID of the booking to cancel |
 
+## Events
+
+`aptus_event` fires on the HA event bus whenever a laundry booking appears or disappears between coordinator refreshes — covers HA-initiated changes (via the services above) and portal-side changes someone else makes directly on the Aptus website.
+
+| `event.data.type` | Other payload fields |
+|---|---|
+| `booking_created` | `booking_id`, `group_name`, `date` (YYYY-MM-DD), `pass_no` |
+| `booking_cancelled` | `booking_id` |
+
+```yaml
+trigger:
+  - platform: event
+    event_type: aptus_event
+    event_data:
+      type: booking_created
+```
+
+The first observed booking snapshot after HA start is treated as the baseline; no events fire for it.
+
 ## Supported portals
 
 Any AptusPortal instance should work. Known working:
