@@ -1,13 +1,17 @@
 """BDD tests for Aptus websocket commands."""
 
+import asyncio
 from datetime import date
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
+import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.aptus.aptus_client import doors, laundry
 from custom_components.aptus.aptus_client.exceptions import AptusAuthError, AptusConnectionError
 from custom_components.aptus.aptus_client.models import SlotState, TimeSlot
+from custom_components.aptus.const import DOMAIN
 
 from .conftest import (
     MOCK_AVAILABLE_SLOTS,
@@ -15,6 +19,9 @@ from .conftest import (
     MOCK_DOOR_STATUS,
     MOCK_DOORS,
     MOCK_LAUNDRY_GROUPS,
+    TEST_BASE_URL,
+    TEST_PASSWORD,
+    TEST_USERNAME,
     MockEntryBuilder,
 )
 
@@ -366,3 +373,121 @@ class TestWebsocketErrorHandling:
 
         assert not result["success"]
         assert result["error"]["code"] == "not_found"
+
+
+def _build_second_entry() -> MockConfigEntry:
+    """Build a second config entry with a distinct unique_id."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Aptus Second",
+        data={
+            "base_url": TEST_BASE_URL + "-second",
+            "username": TEST_USERNAME + "-second",
+            "password": TEST_PASSWORD,
+        },
+        options={
+            "enable_entrance_doors": True,
+            "enable_apartment_door": True,
+            "enable_laundry": True,
+        },
+        unique_id=f"{TEST_BASE_URL}-second_{TEST_USERNAME}-second",
+    )
+
+
+class TestSubscribeCommand:
+    """Describe aptus/subscribe websocket subscription."""
+
+    async def test_it_should_register_subscription_and_send_initial_result(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
+        result = await client.receive_json()
+
+        assert result["success"]
+        assert result["id"] == 1
+
+    async def test_it_should_send_event_when_coordinator_refreshes(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
+        ack = await client.receive_json()
+        assert ack["success"]
+
+        with (
+            patch.object(doors, "list_doors", return_value=MOCK_DOORS),
+            patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
+            patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
+        ):
+            await entry.runtime_data.async_refresh()
+            await hass.async_block_till_done()
+
+        event = await client.receive_json()
+        assert event["id"] == 1
+        assert event["type"] == "event"
+        assert event["event"] == {"updated": True}
+
+    async def test_it_should_return_error_for_unknown_entry_id(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": "nonexistent"})
+        result = await client.receive_json()
+
+        assert not result["success"]
+        assert result["error"]["code"] == "not_found"
+
+    async def test_it_should_isolate_subscriptions_per_entry(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry_a = MockEntryBuilder().build()
+        await _setup_integration(hass, entry_a)
+
+        entry_b = _build_second_entry()
+        await _setup_integration(hass, entry_b)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry_a.entry_id})
+        ack = await client.receive_json()
+        assert ack["success"]
+
+        # Refresh entry B's coordinator — entry A's subscriber should NOT hear it.
+        with (
+            patch.object(doors, "list_doors", return_value=MOCK_DOORS),
+            patch.object(doors, "get_apartment_door_status", return_value=MOCK_DOOR_STATUS),
+            patch.object(laundry, "list_bookings", return_value=MOCK_BOOKINGS),
+        ):
+            await entry_b.runtime_data.async_refresh()
+            await hass.async_block_till_done()
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(client.receive_json(), timeout=0.2)
+
+    async def test_it_should_unsubscribe_when_connection_closes(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+        coordinator = entry.runtime_data
+        listeners_before = len(coordinator._listeners)
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
+        ack = await client.receive_json()
+        assert ack["success"]
+        assert len(coordinator._listeners) == listeners_before + 1
+
+        await client.close()
+        await hass.async_block_till_done()
+
+        assert len(coordinator._listeners) == listeners_before
