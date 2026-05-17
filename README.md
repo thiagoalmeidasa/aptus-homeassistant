@@ -130,6 +130,18 @@ trigger:
 
 The first observed booking snapshot after HA start is treated as the baseline; no events fire for it.
 
+## Blueprints
+
+### Calendar sync
+
+One-way mirror of upcoming events from a source HA calendar (e.g. `calendar.laundry`) to a destination calendar (e.g. Google Calendar). Reconciles on HA start, on schedule, on source state change, and on `aptus_event`.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with this blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fthiagoalmeidasa%2Faptus-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Faptus%2Fcalendar_sync.yaml)
+
+**Prerequisite:** [`hacs_calendar_utils`](https://github.com/swehog/hacs_calendar_utils) — needed because HA core's `calendar.get_events` strips `uid` and exposes no `delete_event` service.
+
+Full configuration, inputs, troubleshooting, and design notes: **[`blueprints/automation/aptus/README.md`](blueprints/automation/aptus/README.md)**.
+
 ## Supported portals
 
 Any AptusPortal instance should work. Known working:
