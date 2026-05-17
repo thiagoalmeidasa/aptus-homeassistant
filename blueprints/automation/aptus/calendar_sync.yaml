@@ -147,7 +147,7 @@ action:
         {%- set ns = namespace(items=[]) -%}
         {%- for s in source_events -%}
           {%- if s.uid and s.uid not in dest_sync_uids -%}
-            {%- set _ = ns.items.append(s) -%}
+            {%- set ns.items = ns.items + [s] -%}
           {%- endif -%}
         {%- endfor -%}
         {{ ns.items }}
@@ -157,7 +157,7 @@ action:
           {%- set m = (d.description | default('')) | regex_findall('\\[sync_uid:([^\\]]+)\\]') -%}
           {%- if m and m[0] not in source_uids
                  and not (d.summary | default('')).startswith('[CANCELLED]') -%}
-            {%- set _ = ns.items.append(d) -%}
+            {%- set ns.items = ns.items + [d] -%}
           {%- endif -%}
         {%- endfor -%}
         {{ ns.items }}
