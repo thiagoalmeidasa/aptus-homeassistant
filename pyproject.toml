@@ -13,6 +13,7 @@ dependencies = [
 dev = [
     "aioresponses>=0.7.6",
     "codespell>=2.3",
+    "home-assistant-frontend>=20250109.2",
     "pre-commit>=3.7",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
