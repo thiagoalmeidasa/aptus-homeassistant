@@ -1,15 +1,26 @@
 """BDD tests for AptusDataUpdateCoordinator."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.aptus.aptus_client import doors, laundry
 from custom_components.aptus.aptus_client.exceptions import (
     AptusAuthError,
     AptusConnectionError,
+)
+from custom_components.aptus.const import (
+    CONF_ENABLE_APARTMENT_DOOR,
+    CONF_ENABLE_ENTRANCE_DOORS,
+    CONF_ENABLE_LAUNDRY,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
+    DOMAIN,
+    MIN_SCAN_INTERVAL_MINUTES,
 )
 from custom_components.aptus.coordinator import AptusDataUpdateCoordinator
 
@@ -18,6 +29,9 @@ from .conftest import (
     MOCK_BOOKINGS,
     MOCK_DOOR_STATUS,
     MOCK_DOORS,
+    TEST_BASE_URL,
+    TEST_PASSWORD,
+    TEST_USERNAME,
     MockEntryBuilder,
 )
 
@@ -368,3 +382,58 @@ class TestCoordinatorEventEmission:
         mock_bookings.assert_not_awaited()
         cancelled = [e for e in received if e.data.get("type") == "booking_cancelled"]
         assert cancelled == []
+
+
+def _entry_with_options(options: dict) -> MockConfigEntry:
+    """Build a MockConfigEntry with arbitrary options (no fixed feature toggles)."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Aptus Test",
+        data={
+            "base_url": TEST_BASE_URL,
+            "username": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+        options=options,
+        unique_id=f"{TEST_BASE_URL}_{TEST_USERNAME}",
+    )
+
+
+class TestCoordinatorScanInterval:
+    """Describe how the coordinator picks its polling interval."""
+
+    async def test_it_should_fall_back_to_the_default_scan_interval_when_no_option_is_set(
+        self, hass: HomeAssistant
+    ):
+        # Options carry the feature toggles but no scan_interval, so the
+        # coordinator must derive update_interval from the default constant.
+        entry = _entry_with_options(
+            {
+                CONF_ENABLE_ENTRANCE_DOORS: True,
+                CONF_ENABLE_APARTMENT_DOOR: True,
+                CONF_ENABLE_LAUNDRY: True,
+            }
+        )
+        mock_client = AsyncMock()
+
+        coordinator = AptusDataUpdateCoordinator(hass, mock_client, entry)
+
+        assert coordinator.update_interval == timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
+
+    async def test_it_should_apply_the_configured_scan_interval_from_options(
+        self, hass: HomeAssistant
+    ):
+        configured_minutes = MIN_SCAN_INTERVAL_MINUTES + 2
+        entry = _entry_with_options(
+            {
+                CONF_ENABLE_ENTRANCE_DOORS: True,
+                CONF_ENABLE_APARTMENT_DOOR: True,
+                CONF_ENABLE_LAUNDRY: True,
+                CONF_SCAN_INTERVAL: configured_minutes,
+            }
+        )
+        mock_client = AsyncMock()
+
+        coordinator = AptusDataUpdateCoordinator(hass, mock_client, entry)
+
+        assert coordinator.update_interval == timedelta(minutes=configured_minutes)

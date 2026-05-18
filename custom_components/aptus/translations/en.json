@@ -8,6 +8,18 @@
           "username": "Username",
           "password": "Password"
         }
+      },
+      "features": {
+        "title": "Choose features",
+        "data": {
+          "enable_entrance_doors": "Entrance doors",
+          "enable_apartment_door": "Apartment door",
+          "enable_laundry": "Laundry booking",
+          "scan_interval": "Polling interval"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll Aptus for changes, in minutes. Live updates still arrive via push between polls."
+        }
       }
     },
     "error": {
@@ -17,6 +29,22 @@
     },
     "abort": {
       "already_configured": "This portal account is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Aptus options",
+        "data": {
+          "enable_entrance_doors": "Entrance doors",
+          "enable_apartment_door": "Apartment door",
+          "enable_laundry": "Laundry booking",
+          "scan_interval": "Polling interval"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll Aptus for changes, in minutes. Live updates still arrive via push between polls."
+        }
+      }
     }
   }
 }

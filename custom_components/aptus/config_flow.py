@@ -6,7 +6,13 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.const import UnitOfTime
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 import voluptuous as vol
 
 from .aptus_client import AptusClient, doors, laundry
@@ -15,7 +21,11 @@ from .const import (
     CONF_ENABLE_APARTMENT_DOOR,
     CONF_ENABLE_ENTRANCE_DOORS,
     CONF_ENABLE_LAUNDRY,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
     DOMAIN,
+    MAX_SCAN_INTERVAL_MINUTES,
+    MIN_SCAN_INTERVAL_MINUTES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +39,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-def _features_schema(defaults: dict[str, bool] | None = None) -> vol.Schema:
+def _features_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     """Build the features schema with defaults."""
     if defaults is None:
         defaults = {}
@@ -47,6 +57,18 @@ def _features_schema(defaults: dict[str, bool] | None = None) -> vol.Schema:
                 CONF_ENABLE_LAUNDRY,
                 default=defaults.get(CONF_ENABLE_LAUNDRY, True),
             ): bool,
+            vol.Required(
+                CONF_SCAN_INTERVAL,
+                default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=MIN_SCAN_INTERVAL_MINUTES,
+                    max=MAX_SCAN_INTERVAL_MINUTES,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement=UnitOfTime.MINUTES,
+                )
+            ),
         }
     )
 
