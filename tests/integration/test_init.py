@@ -1,5 +1,6 @@
 """BDD tests for Aptus integration setup and unload."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
@@ -10,7 +11,12 @@ from custom_components.aptus.aptus_client import doors, laundry
 from custom_components.aptus.aptus_client.exceptions import (
     AptusConnectionError,
 )
-from custom_components.aptus.const import DOMAIN
+from custom_components.aptus.const import (
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
+    DOMAIN,
+    MIN_SCAN_INTERVAL_MINUTES,
+)
 
 from .conftest import (
     MOCK_BOOKINGS,
@@ -147,3 +153,43 @@ class TestAsyncUnloadEntry:
 
         mock_client.close.assert_awaited_once()
         assert entry.state == ConfigEntryState.NOT_LOADED
+
+
+class TestEntryReloadOnScanIntervalChange:
+    """Describe how an option change to scan_interval is propagated."""
+
+    async def test_it_should_reload_the_entry_when_scan_interval_option_changes(
+        self, hass: HomeAssistant
+    ):
+        # Behavioural assertion: after changing the option, the (newly built)
+        # coordinator's update_interval reflects the new value. That only
+        # happens if the update listener triggered a full reload — proving
+        # the reload wiring is in place without mocking async_reload directly.
+        entry = _make_entry(hass)
+
+        p1, p2, p3 = _patch_data_fetchers()
+        with (
+            patch("custom_components.aptus.AptusClient") as mock_client_cls,
+            p1,
+            p2,
+            p3,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+
+            await hass.config_entries.async_setup(entry.entry_id)
+            await hass.async_block_till_done()
+
+            assert entry.runtime_data.update_interval == timedelta(
+                minutes=DEFAULT_SCAN_INTERVAL_MINUTES
+            )
+
+            new_minutes = MIN_SCAN_INTERVAL_MINUTES + 2
+            hass.config_entries.async_update_entry(
+                entry,
+                options={**entry.options, CONF_SCAN_INTERVAL: new_minutes},
+            )
+            await hass.async_block_till_done()
+
+            assert entry.state == ConfigEntryState.LOADED
+            assert entry.runtime_data.update_interval == timedelta(minutes=new_minutes)

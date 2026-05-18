@@ -5,12 +5,24 @@ from unittest.mock import AsyncMock, patch
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+import voluptuous as vol
 
 from custom_components.aptus.aptus_client.exceptions import (
     AptusAuthError,
     AptusConnectionError,
 )
-from custom_components.aptus.const import DOMAIN
+from custom_components.aptus.const import (
+    CONF_ENABLE_APARTMENT_DOOR,
+    CONF_ENABLE_ENTRANCE_DOORS,
+    CONF_ENABLE_LAUNDRY,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
+    DOMAIN,
+    MAX_SCAN_INTERVAL_MINUTES,
+    MIN_SCAN_INTERVAL_MINUTES,
+)
 
 from .conftest import TEST_BASE_URL, TEST_PASSWORD, TEST_USERNAME
 
@@ -191,3 +203,122 @@ class TestAptusConfigFlow:
 
         assert result["type"] == FlowResultType.ABORT
         assert result["reason"] == "already_configured"
+
+
+def _make_options_entry(hass: HomeAssistant, options: dict | None = None) -> MockConfigEntry:
+    """Create a config entry suitable for driving the options flow."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Aptus Test",
+        data={
+            "base_url": TEST_BASE_URL,
+            "username": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+        options=options or {},
+        unique_id=f"{TEST_BASE_URL}_{TEST_USERNAME}",
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+def _marker_for(schema: vol.Schema, key: str):
+    """Return the vol marker (Required/Optional) for a given key in a schema."""
+    for marker in schema.schema:
+        marker_key = marker.schema if hasattr(marker, "schema") else marker
+        if marker_key == key:
+            return marker
+    return None
+
+
+def _resolve_default(marker):
+    """Return the marker's default value (calls the default factory if needed)."""
+    default = marker.default
+    return default() if callable(default) else default
+
+
+def _valid_options_payload(**overrides):
+    """Return a complete options-step payload with overrides merged in."""
+    payload = {
+        CONF_ENABLE_ENTRANCE_DOORS: True,
+        CONF_ENABLE_APARTMENT_DOOR: False,
+        CONF_ENABLE_LAUNDRY: True,
+        CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL_MINUTES,
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestAptusOptionsFlowScanInterval:
+    """Describe the scan_interval field in the options flow."""
+
+    async def test_it_should_render_a_scan_interval_field_in_the_options_form(
+        self, hass: HomeAssistant
+    ):
+        entry = _make_options_entry(hass)
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+
+        assert result["type"] == FlowResultType.FORM
+        assert _marker_for(result["data_schema"], CONF_SCAN_INTERVAL) is not None
+
+    async def test_it_should_default_the_scan_interval_field_to_the_currently_saved_value(
+        self, hass: HomeAssistant
+    ):
+        saved_value = MIN_SCAN_INTERVAL_MINUTES + 2
+        entry = _make_options_entry(hass, options={CONF_SCAN_INTERVAL: saved_value})
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+
+        marker = _marker_for(result["data_schema"], CONF_SCAN_INTERVAL)
+        assert _resolve_default(marker) == saved_value
+
+    async def test_it_should_default_the_scan_interval_field_to_the_default_when_no_value_is_saved(
+        self, hass: HomeAssistant
+    ):
+        entry = _make_options_entry(hass)
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+
+        marker = _marker_for(result["data_schema"], CONF_SCAN_INTERVAL)
+        assert _resolve_default(marker) == DEFAULT_SCAN_INTERVAL_MINUTES
+
+    async def test_it_should_persist_the_scan_interval_when_options_are_submitted(
+        self, hass: HomeAssistant
+    ):
+        entry = _make_options_entry(hass)
+        chosen_value = MIN_SCAN_INTERVAL_MINUTES + 1
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            _valid_options_payload(**{CONF_SCAN_INTERVAL: chosen_value}),
+        )
+
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert entry.options[CONF_SCAN_INTERVAL] == chosen_value
+
+    async def test_it_should_reject_a_scan_interval_below_the_allowed_minimum(
+        self, hass: HomeAssistant
+    ):
+        entry = _make_options_entry(hass)
+        below_minimum = MIN_SCAN_INTERVAL_MINUTES - 1
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        with pytest.raises(vol.Invalid):
+            await hass.config_entries.options.async_configure(
+                result["flow_id"],
+                _valid_options_payload(**{CONF_SCAN_INTERVAL: below_minimum}),
+            )
+
+    async def test_it_should_reject_a_scan_interval_above_the_allowed_maximum(
+        self, hass: HomeAssistant
+    ):
+        entry = _make_options_entry(hass)
+        above_maximum = MAX_SCAN_INTERVAL_MINUTES + 1
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        with pytest.raises(vol.Invalid):
+            await hass.config_entries.options.async_configure(
+                result["flow_id"],
+                _valid_options_payload(**{CONF_SCAN_INTERVAL: above_maximum}),
+            )
