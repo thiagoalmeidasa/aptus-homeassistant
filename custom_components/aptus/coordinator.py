@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .aptus_client import AptusClient, doors, laundry
 from .aptus_client.exceptions import AptusAuthError, AptusConnectionError
@@ -47,6 +48,10 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.client = client
         self.entry = entry
+        # Stamp of the last successful fetch from Aptus. HA's DataUpdateCoordinator
+        # only tracks a success boolean, so we record the time ourselves to expose
+        # a sync freshness indicator over the websocket subscription.
+        self.last_update_success_time: datetime | None = None
         self._category_id: str | None = None
         # None until the first successful refresh observes a booking snapshot.
         # The first snapshot is the baseline — emitting "created" events for
@@ -98,6 +103,7 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # cancellation events for whatever was in the previous snapshot.
             self._previous_bookings = None
 
+        self.last_update_success_time = dt_util.utcnow()
         return {
             "doors": door_list,
             "apartment_status": apartment_status,

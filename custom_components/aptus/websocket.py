@@ -201,17 +201,25 @@ def ws_subscribe(
     """
     Subscribe to coordinator refresh signals for a config entry.
 
-    Signal-only channel: every coordinator refresh emits `{"updated": True}`.
-    Subscribers re-fetch via the existing `aptus/laundry/*` commands.
+    Pushes `{"updated": True, "last_synced": "<iso>" | None}` on every
+    refresh, plus one initial event right after subscribing so consumers
+    can render their freshness indicator without waiting up to a full
+    scan interval. Subscribers re-fetch payload data via the existing
+    `aptus/laundry/*` commands.
     """
     coordinator = _get_coordinator(hass, msg["entry_id"])
     if not coordinator:
         connection.send_error(msg["id"], "not_found", "Aptus entry not found")
         return
 
+    def _payload() -> dict[str, Any]:
+        ts = coordinator.last_update_success_time
+        return {"updated": True, "last_synced": ts.isoformat() if ts else None}
+
     @callback
     def _on_update() -> None:
-        connection.send_message(websocket_api.event_message(msg["id"], {"updated": True}))
+        connection.send_message(websocket_api.event_message(msg["id"], _payload()))
 
     connection.subscriptions[msg["id"]] = coordinator.async_add_listener(_on_update)
     connection.send_result(msg["id"])
+    connection.send_message(websocket_api.event_message(msg["id"], _payload()))
