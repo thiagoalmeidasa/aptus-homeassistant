@@ -35,6 +35,10 @@ export interface HomeAssistant {
   callApi<T>(method: string, path: string): Promise<T>;
   connection: {
     sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T>;
+    subscribeMessage<T = unknown>(
+      callback: (msg: T) => void,
+      subscription: Record<string, unknown>,
+    ): Promise<() => void>;
   };
 }
 
