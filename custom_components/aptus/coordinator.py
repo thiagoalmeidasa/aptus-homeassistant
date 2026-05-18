@@ -19,7 +19,8 @@ from .const import (
     CONF_ENABLE_APARTMENT_DOOR,
     CONF_ENABLE_ENTRANCE_DOORS,
     CONF_ENABLE_LAUNDRY,
-    DEFAULT_SCAN_INTERVAL,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,11 +38,12 @@ class AptusDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator to fetch door status and laundry bookings from Aptus."""
 
     def __init__(self, hass: HomeAssistant, client: AptusClient, entry: ConfigEntry) -> None:
+        scan_interval_minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
         super().__init__(
             hass,
             _LOGGER,
             name="Aptus",
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(minutes=scan_interval_minutes),
         )
         self.client = client
         self.entry = entry
