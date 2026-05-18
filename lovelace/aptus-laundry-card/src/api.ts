@@ -1,4 +1,11 @@
-import type { HomeAssistant, AptusEntry, LaundryGroup, TimeSlot, LaundryBooking } from "./types";
+import type {
+  HomeAssistant,
+  AptusEntry,
+  AptusSubscribeEvent,
+  LaundryGroup,
+  TimeSlot,
+  LaundryBooking,
+} from "./types";
 
 export async function fetchEntries(hass: HomeAssistant): Promise<AptusEntry[]> {
   return hass.connection.sendMessagePromise<AptusEntry[]>({
@@ -52,9 +59,9 @@ export async function fetchWeeklyCalendar(
 export async function subscribeUpdates(
   hass: HomeAssistant,
   entryId: string,
-  callback: () => void,
+  callback: (msg: AptusSubscribeEvent) => void,
 ): Promise<() => void> {
-  return hass.connection.subscribeMessage(callback, {
+  return hass.connection.subscribeMessage<AptusSubscribeEvent>(callback, {
     type: "aptus/subscribe",
     entry_id: entryId,
   });

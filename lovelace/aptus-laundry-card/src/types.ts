@@ -26,6 +26,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  locale?: { language: string };
   callService(
     domain: string,
     service: string,
@@ -40,6 +41,11 @@ export interface HomeAssistant {
       subscription: Record<string, unknown>,
     ): Promise<() => void>;
   };
+}
+
+export interface AptusSubscribeEvent {
+  updated: boolean;
+  last_synced: string | null;
 }
 
 export interface AptusEntry {
