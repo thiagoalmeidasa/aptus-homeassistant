@@ -420,6 +420,8 @@ class TestSubscribeCommand:
         await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
         ack = await client.receive_json()
         assert ack["success"]
+        # Drain the initial state event so the next message is the refresh event.
+        await client.receive_json()
 
         with (
             patch.object(doors, "list_doors", return_value=MOCK_DOORS),
@@ -432,7 +434,50 @@ class TestSubscribeCommand:
         event = await client.receive_json()
         assert event["id"] == 1
         assert event["type"] == "event"
-        assert event["event"] == {"updated": True}
+        assert event["event"]["updated"] is True
+        assert event["event"]["last_synced"] == (
+            entry.runtime_data.last_update_success_time.isoformat()
+        )
+
+    async def test_it_should_send_initial_last_synced_event_immediately_after_subscribing(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        # Subscribers shouldn't have to wait for the next refresh (up to the
+        # full scan interval away) to learn the current last_synced — the
+        # subscription should push the coordinator's current state straight
+        # after the ack so cards can render their timestamp on first load.
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+        expected_iso = entry.runtime_data.last_update_success_time.isoformat()
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
+        ack = await client.receive_json()
+        assert ack["success"]
+
+        initial_event = await client.receive_json()
+        assert initial_event["id"] == 1
+        assert initial_event["type"] == "event"
+        assert initial_event["event"]["updated"] is True
+        assert initial_event["event"]["last_synced"] == expected_iso
+
+    async def test_it_should_send_null_last_synced_when_no_refresh_has_succeeded(
+        self, hass: HomeAssistant, hass_ws_client
+    ):
+        # Edge case: coordinator alive but no successful refresh yet (e.g.
+        # transient portal outage at HA startup). The card must still get
+        # a well-formed payload so it can render a "never synced" state.
+        entry = MockEntryBuilder().build()
+        await _setup_integration(hass, entry)
+        entry.runtime_data.last_update_success_time = None
+
+        client = await hass_ws_client(hass)
+        await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry.entry_id})
+        ack = await client.receive_json()
+        assert ack["success"]
+
+        initial_event = await client.receive_json()
+        assert initial_event["event"]["last_synced"] is None
 
     async def test_it_should_return_error_for_unknown_entry_id(
         self, hass: HomeAssistant, hass_ws_client
@@ -460,6 +505,9 @@ class TestSubscribeCommand:
         await client.send_json({"id": 1, "type": "aptus/subscribe", "entry_id": entry_a.entry_id})
         ack = await client.receive_json()
         assert ack["success"]
+        # Drain the initial state event so the isolation check below only
+        # observes messages caused by entry B's refresh (which should be none).
+        await client.receive_json()
 
         # Refresh entry B's coordinator — entry A's subscriber should NOT hear it.
         with (

@@ -4,13 +4,14 @@ import type { AptusLaundryCardConfig, HomeAssistant } from "../src/types";
 function makeHass(): HomeAssistant {
   return {
     states: {},
+    locale: { language: "en-US" },
     callService: vi.fn().mockResolvedValue(undefined),
     callApi: vi.fn().mockResolvedValue([]),
     connection: {
       sendMessagePromise: vi.fn().mockResolvedValue([]),
       subscribeMessage: vi.fn().mockResolvedValue(() => {}),
     },
-  };
+  } as HomeAssistant;
 }
 
 function createCard() {
@@ -253,6 +254,150 @@ describe("AptusLaundryCard", () => {
       await waitForUpdates(card);
 
       expect(unsub).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("when displaying last synced", () => {
+    const LAST_SYNCED_SELECTOR = ".last-synced";
+
+    async function renderSubscribedCard(hass: HomeAssistant) {
+      const card = await renderCard(
+        { type: "custom:aptus-laundry-card", entry_id: "entry-A" },
+        hass,
+      );
+      await waitForUpdates(card);
+      return card;
+    }
+
+    function pushUpdate(hass: HomeAssistant, payload: { updated: boolean; last_synced: string | null }) {
+      const subscribe = hass.connection.subscribeMessage as ReturnType<typeof vi.fn>;
+      const [callback] = subscribe.mock.calls[0];
+      callback(payload);
+    }
+
+    it("should not render a timestamp before any data has been received", async () => {
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      expect(card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)).toBeNull();
+    });
+
+    it("should render the timestamp from the initial subscription event", async () => {
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      pushUpdate(hass, { updated: true, last_synced: new Date().toISOString() });
+      await waitForUpdates(card);
+
+      expect(card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)).not.toBeNull();
+    });
+
+    it("should update the timestamp when the coordinator pushes a new value", async () => {
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      const firstIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      pushUpdate(hass, { updated: true, last_synced: firstIso });
+      await waitForUpdates(card);
+      const firstText = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent;
+
+      const secondIso = new Date().toISOString();
+      pushUpdate(hass, { updated: true, last_synced: secondIso });
+      await waitForUpdates(card);
+      const secondText = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent;
+
+      expect(secondText).not.toBe(firstText);
+    });
+
+    it("should render absolute time using hass.locale formatting", async () => {
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      const iso = new Date().toISOString();
+      const expectedAbsolute = new Date(iso).toLocaleTimeString(hass.locale!.language);
+      pushUpdate(hass, { updated: true, last_synced: iso });
+      await waitForUpdates(card);
+
+      const text = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent;
+      expect(text).toContain(expectedAbsolute);
+    });
+
+    it("should append a relative time suffix next to the absolute time", async () => {
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      // Stale-by-construction so the relative portion is observably different
+      // from "just now" — the test stays meaningful regardless of which exact
+      // label the renderer picks for sub-minute ages.
+      const minutesAgo = 4;
+      const staleIso = new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
+      pushUpdate(hass, { updated: true, last_synced: staleIso });
+      await waitForUpdates(card);
+
+      const text = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent ?? "";
+      expect(text).toMatch(new RegExp(`${minutesAgo}\\s*m`));
+      expect(text).toContain("ago");
+    });
+
+    it("should re-render the relative portion on a periodic tick", async () => {
+      // Vitest's fake timers would also stub waitForUpdates' setTimeout, so
+      // instead we exercise the same contract directly: when "now" shifts
+      // past a relative-bucket boundary and the card re-renders, the rendered
+      // text reflects the new bucket. That proves the periodic tick → render
+      // path produces fresh relative time without needing the real interval
+      // to fire.
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+      const syncIso = new Date().toISOString();
+      pushUpdate(hass, { updated: true, last_synced: syncIso });
+      await card.updateComplete;
+      const before = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent;
+
+      const realNow = Date.now;
+      Date.now = () => realNow() + 3 * 60 * 1000;
+      try {
+        card.requestUpdate();
+        await card.updateComplete;
+        const after = card.shadowRoot!.querySelector(LAST_SYNCED_SELECTOR)!.textContent;
+        expect(after).not.toBe(before);
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
+    it("should stop the periodic tick when the card is disconnected", async () => {
+      const setSpy = vi.spyOn(globalThis, "setInterval");
+      const clearSpy = vi.spyOn(globalThis, "clearInterval");
+      try {
+        const hass = makeHass();
+        const card = await renderSubscribedCard(hass);
+        expect(setSpy).toHaveBeenCalled();
+        const intervalId = setSpy.mock.results[setSpy.mock.results.length - 1].value;
+
+        card.remove();
+
+        expect(clearSpy).toHaveBeenCalledWith(intervalId);
+      } finally {
+        setSpy.mockRestore();
+        clearSpy.mockRestore();
+      }
+    });
+
+    it("should apply discrete secondary styling to the synced row", async () => {
+      // jsdom doesn't resolve CSS vars on adopted style sheets, so we verify
+      // the styling contract by inspecting the CSS shipped with the component.
+      // Lit exposes its static styles via the constructor; toString() gives
+      // the raw CSS we authored.
+      const hass = makeHass();
+      const card = await renderSubscribedCard(hass);
+
+      // Lit wraps `static styles = css\`...\`` in a CSSResult; toString()
+      // returns the source CSS text.
+      const ctor = card.constructor as unknown as { styles: { toString(): string } };
+      const cssText = ctor.styles.toString();
+
+      expect(cssText).toMatch(/\.last-synced/);
+      expect(cssText).toMatch(/secondary-text-color/);
     });
   });
 });

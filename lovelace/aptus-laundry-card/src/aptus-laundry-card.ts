@@ -1,8 +1,9 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type {
   AptusLaundryCardConfig,
   AptusEntry,
+  AptusSubscribeEvent,
   HomeAssistant,
   SectionConfig,
 } from "./types";
@@ -11,6 +12,8 @@ import { fetchEntries, subscribeUpdates } from "./api";
 import "./sections/my-bookings";
 import "./sections/first-available";
 import "./sections/calendar";
+
+const RELATIVE_TICK_INTERVAL_MS = 60_000;
 
 @customElement("aptus-laundry-card")
 export class AptusLaundryCard extends LitElement {
@@ -30,15 +33,24 @@ export class AptusLaundryCard extends LitElement {
       color: var(--primary-text-color);
       font-size: 14px;
     }
+    .last-synced {
+      color: var(--secondary-text-color);
+      font-size: 11px;
+      padding: 4px 12px;
+      text-align: right;
+      opacity: 0.75;
+    }
   `;
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config!: AptusLaundryCardConfig;
   @state() private _entries: AptusEntry[] = [];
   @state() private _selectedEntryId: string | null = null;
+  @state() private _lastSynced: Date | null = null;
   private _sections: SectionConfig[] = DEFAULT_SECTIONS;
   private _entriesLoaded = false;
   private _unsub?: () => void;
+  private _tickInterval?: ReturnType<typeof setInterval>;
 
   setConfig(config: AptusLaundryCardConfig): void {
     this._config = config;
@@ -52,7 +64,10 @@ export class AptusLaundryCard extends LitElement {
     return 3 + this._sections.length * 3;
   }
 
-  private _onBookingChanged = (): void => {
+  private _onBookingChanged = (msg?: AptusSubscribeEvent | Event): void => {
+    if (msg && !(msg instanceof Event) && typeof msg === "object" && "last_synced" in msg) {
+      this._lastSynced = msg.last_synced ? new Date(msg.last_synced) : null;
+    }
     const selectors =
       "aptus-laundry-bookings, aptus-laundry-first-available, aptus-laundry-calendar";
     this.shadowRoot?.querySelectorAll(selectors).forEach((el) => {
@@ -65,11 +80,19 @@ export class AptusLaundryCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.addEventListener("aptus-booking-changed", this._onBookingChanged);
+    this._tickInterval = setInterval(
+      () => this.requestUpdate(),
+      RELATIVE_TICK_INTERVAL_MS,
+    );
     this._loadEntries();
   }
 
   disconnectedCallback(): void {
     this.removeEventListener("aptus-booking-changed", this._onBookingChanged);
+    if (this._tickInterval !== undefined) {
+      clearInterval(this._tickInterval);
+      this._tickInterval = undefined;
+    }
     this._unsubscribe();
     super.disconnectedCallback();
   }
@@ -125,6 +148,17 @@ export class AptusLaundryCard extends LitElement {
     this._unsubscribe();
     this._selectedEntryId = value;
     this._ensureSubscribed();
+  }
+
+  private _renderLastSynced() {
+    if (!this._lastSynced) return nothing;
+    const language = this.hass?.locale?.language;
+    const absolute = this._lastSynced.toLocaleTimeString(language);
+    const ageMinutes = Math.floor(
+      (Date.now() - this._lastSynced.getTime()) / 60_000,
+    );
+    const relative = ageMinutes < 1 ? "just now" : `${ageMinutes}m ago`;
+    return html`<div class="last-synced">synced at ${absolute} (${relative})</div>`;
   }
 
   private _renderSection(section: SectionConfig) {
@@ -187,6 +221,7 @@ export class AptusLaundryCard extends LitElement {
             : html`<div style="padding: 16px; color: var(--secondary-text-color)">
                 Loading...
               </div>`}
+        ${this._renderLastSynced()}
       </ha-card>
     `;
   }
