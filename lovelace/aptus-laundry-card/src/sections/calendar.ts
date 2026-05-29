@@ -1,11 +1,10 @@
 import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import { fetchGroups, fetchWeeklyCalendar } from "../api";
 import { sharedStyles } from "../styles";
 import type { HomeAssistant, LaundryGroup, TimeSlot } from "../types";
 import { confirmDialog } from "../components/confirm-dialog";
 
-@customElement("aptus-laundry-calendar")
 export class AptusLaundryCalendar extends LitElement {
   static styles = [
     sharedStyles,
@@ -279,3 +278,12 @@ export class AptusLaundryCalendar extends LitElement {
     `;
   }
 }
+
+// Defer customElements.define so HA's scoped-custom-element-registry
+// polyfill — which installs after our module evaluates — sees the call.
+// See issues/cold-load-race-investigation.md (H8).
+setTimeout(() => {
+  if (!customElements.get("aptus-laundry-calendar")) {
+    customElements.define("aptus-laundry-calendar", AptusLaundryCalendar);
+  }
+}, 0);

@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import type {
   AptusLaundryCardConfig,
   AptusEntry,
@@ -15,7 +15,6 @@ import "./sections/calendar";
 
 const RELATIVE_TICK_INTERVAL_MS = 60_000;
 
-@customElement("aptus-laundry-card")
 export class AptusLaundryCard extends LitElement {
   static styles = css`
     :host {
@@ -233,6 +232,15 @@ export class AptusLaundryCard extends LitElement {
     };
   }
 }
+
+// Defer customElements.define so HA's scoped-custom-element-registry
+// polyfill — which installs after our module evaluates — sees the call.
+// See issues/cold-load-race-investigation.md (H8).
+setTimeout(() => {
+  if (!customElements.get("aptus-laundry-card")) {
+    customElements.define("aptus-laundry-card", AptusLaundryCard);
+  }
+}, 0);
 
 // Register with HA card picker
 (window as any).customCards = (window as any).customCards || [];  // eslint-disable-line @typescript-eslint/no-explicit-any
