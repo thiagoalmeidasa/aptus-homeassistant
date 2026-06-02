@@ -25,6 +25,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build Lovelace cards
+        run: |
+          for card in lovelace/aptus-laundry-card lovelace/aptus-lock-card; do
+            (cd "$card" && npm ci && npm run build)
+          done
+
       - name: Update manifest version
         run: python3 .github/scripts/update_manifest_version.py --version ${{ github.event.release.tag_name }}
 

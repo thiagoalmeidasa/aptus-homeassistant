@@ -7,15 +7,18 @@ repos:
       - id: check-yaml
         args: [--unsafe]  # accept HA-specific custom tags like !input, !include
       - id: trailing-whitespace
+        exclude: "custom_components/aptus/www/.*\\.js$"
       - id: end-of-file-fixer
+        exclude: "custom_components/aptus/www/.*\\.js$"
       - id: mixed-line-ending
+        exclude: "custom_components/aptus/www/.*\\.js$"
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
       - id: codespell
         args: ["-L", "hass,ot"]
-        exclude: "package-lock\\.json$"
+        exclude: "(package-lock\\.json|custom_components/aptus/www/.*\\.js)$"
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.6

@@ -39,8 +39,12 @@ describe("aptus-lock-card load race", () => {
 
     expect(typeof el.setConfig).toBe("undefined");
 
-    // Module loads → customElements.define runs → browser upgrades el in place.
+    // Module loads → deferred setTimeout(0) runs customElements.define
+    // → browser upgrades el in place. The wait must outlast the deferred
+    // registration; see deferred-registration.test.ts for the deferral
+    // rationale.
     await import("../src/aptus-lock-card");
+    await new Promise((r) => setTimeout(r, 0));
     expect(customElements.get("aptus-lock-card")).toBeDefined();
 
     // After upgrade the same instance now has setConfig.

@@ -1,11 +1,10 @@
 import { LitElement, html } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import { fetchFirstAvailable } from "../api";
 import { sharedStyles } from "../styles";
 import type { HomeAssistant, TimeSlot } from "../types";
 import { confirmDialog } from "../components/confirm-dialog";
 
-@customElement("aptus-laundry-first-available")
 export class AptusLaundryFirstAvailable extends LitElement {
   static styles = sharedStyles;
 
@@ -78,3 +77,12 @@ export class AptusLaundryFirstAvailable extends LitElement {
     `;
   }
 }
+
+// Defer customElements.define so HA's scoped-custom-element-registry
+// polyfill — which installs after our module evaluates — sees the call.
+// See issues/cold-load-race-investigation.md (H8).
+setTimeout(() => {
+  if (!customElements.get("aptus-laundry-first-available")) {
+    customElements.define("aptus-laundry-first-available", AptusLaundryFirstAvailable);
+  }
+}, 0);

@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 
 export type ConfirmOpts = {
   title: string;
@@ -9,7 +9,6 @@ export type ConfirmOpts = {
   destructive?: boolean;
 };
 
-@customElement("aptus-confirm-dialog")
 export class AptusConfirmDialog extends LitElement {
   static styles = css`
     dialog {
@@ -138,6 +137,15 @@ export class AptusConfirmDialog extends LitElement {
     `;
   }
 }
+
+// Defer customElements.define so HA's scoped-custom-element-registry
+// polyfill — which installs after our module evaluates — sees the call.
+// See issues/cold-load-race-investigation.md (H8).
+setTimeout(() => {
+  if (!customElements.get("aptus-confirm-dialog")) {
+    customElements.define("aptus-confirm-dialog", AptusConfirmDialog);
+  }
+}, 0);
 
 export function confirmDialog(opts: ConfirmOpts): Promise<boolean> {
   return new Promise<boolean>((resolve) => {

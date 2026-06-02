@@ -28,8 +28,11 @@ async function waitFor(check: () => boolean, label = "condition"): Promise<void>
 }
 
 describe("confirmDialog", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = "";
+    // The bundle defers customElements.define to setTimeout(0); yield
+    // one task so the registration lands before document.createElement.
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   describe("when shown with a title and message", () => {

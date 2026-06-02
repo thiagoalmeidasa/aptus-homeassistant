@@ -69,9 +69,12 @@ async function flush(): Promise<void> {
 }
 
 describe("AptusLaundryCalendar booking", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = "";
     mockConfirm.mockReset();
+    // The bundle defers customElements.define to setTimeout(0); yield
+    // one task so the registration lands before document.createElement.
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   describe("when the user clicks an available slot", () => {

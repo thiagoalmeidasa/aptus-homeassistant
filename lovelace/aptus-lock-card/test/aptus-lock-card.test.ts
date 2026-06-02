@@ -59,6 +59,10 @@ describe("AptusLockCard", () => {
   beforeEach(async () => {
     document.body.innerHTML = "";
     await import("../src/aptus-lock-card");
+    // The bundle defers customElements.define to setTimeout(0) so HA's
+    // scoped-custom-element-registry polyfill can install first; yield
+    // one task so the registration actually lands before tests run.
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   describe("when configured with lock entities", () => {

@@ -1,8 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import type { AptusLockCardConfig, HomeAssistant, HassEntity } from "./types";
 
-@customElement("aptus-lock-card")
 export class AptusLockCard extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config!: AptusLockCardConfig;
@@ -388,6 +387,15 @@ export class AptusLockCard extends LitElement {
     }
   `;
 }
+
+// Defer customElements.define so HA's scoped-custom-element-registry
+// polyfill — which installs after our module evaluates — sees the call.
+// See issues/cold-load-race-investigation.md (H8).
+setTimeout(() => {
+  if (!customElements.get("aptus-lock-card")) {
+    customElements.define("aptus-lock-card", AptusLockCard);
+  }
+}, 0);
 
 // Register with HA card picker
 (window as any).customCards = (window as any).customCards || [];  // eslint-disable-line @typescript-eslint/no-explicit-any
